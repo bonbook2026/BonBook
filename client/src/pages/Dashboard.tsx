@@ -19,7 +19,7 @@ export function Dashboard() {
         </div>
         <div className="hero-visual">
           <div className="hero-circle" aria-hidden="true" />
-          <img src="/images/bonbook-cover.png" alt="کتاب آبی با نوشتهٔ BonBook روی جلد" className="hero-book" fetchPriority="high" />
+          <img src={`${import.meta.env.BASE_URL}images/bonbook-cover.png`} alt="کتاب آبی با نوشتهٔ BonBook روی جلد" className="hero-book" fetchPriority="high" />
           <div className="hero-book-caption"><span className="hero-caption-line" /><span dir="ltr">A new chapter.</span><span className="hero-caption-line" /></div>
         </div>
         <Link to="/store" className="shop-button hero-cta">

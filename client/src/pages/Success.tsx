@@ -2,6 +2,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
 import { api } from '../services/api';
+import { IS_DEMO } from '../config/demo';
 
 export function Success() {
   const [searchParams] = useSearchParams();
@@ -24,14 +25,15 @@ export function Success() {
           </svg>
         </div>
 
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">پرداخت با موفقیت انجام شد</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">{IS_DEMO ? 'پرداخت آزمایشی با موفقیت انجام شد' : 'پرداخت با موفقیت انجام شد'}</h1>
 
         {orderNumber && (
           <p className="text-gray-500 mb-4 font-mono text-sm">{orderNumber}</p>
         )}
 
         <p className="text-gray-600 mb-2">
-          کتاب مورد نظر شما به آدرس ایمیل شما ارسال می‌شود.
+          {IS_DEMO ? 'سفارش آزمایشی ثبت شد. مبلغی پرداخت نشده و کتاب یا ایمیلی ارسال نمی‌شود.' :
+            'کتاب مورد نظر شما به آدرس ایمیل شما ارسال می‌شود.'}
         </p>
 
         {email && (

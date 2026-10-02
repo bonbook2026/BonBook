@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { PurchaseSteps } from '../components/PurchaseSteps';
 import { api } from '../services/api';
+import { IS_DEMO } from '../config/demo';
 
 export function OrderSummary() {
   const location = useLocation();
@@ -103,7 +104,7 @@ export function OrderSummary() {
             {rate && (
               <>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">نرخ دلار</span>
+                  <span className="text-gray-500">{IS_DEMO ? 'نرخ دلار آزمایشی' : 'نرخ دلار'}</span>
                   <span className="font-medium">{formatNumber(rate)} ریال</span>
                 </div>
                 <div className="flex justify-between pt-2 border-t border-gray-100">
@@ -124,7 +125,7 @@ export function OrderSummary() {
           disabled={creating || !rate}
           className="w-full bg-brand-600 text-white py-3 rounded-xl font-medium hover:bg-brand-700 active:bg-brand-800 transition-colors disabled:opacity-50"
         >
-          {creating ? 'در حال پردازش...' : 'پرداخت'}
+          {creating ? 'در حال پردازش...' : IS_DEMO ? 'شبیه‌سازی پرداخت موفق' : 'پرداخت'}
         </button>
       </div>
     </Layout>

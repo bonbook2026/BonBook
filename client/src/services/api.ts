@@ -1,18 +1,20 @@
 import { AuthResponse } from '../types';
+import { IS_DEMO } from '../config/demo';
 
 const BASE_URL = '/api';
+const TOKEN_KEY = IS_DEMO ? 'bonbook_preview_token' : 'bonbook_token';
 
 let authToken: string | null = null;
 
 export function setToken(token: string) {
   authToken = token;
-  localStorage.setItem('bonbook_token', token);
+  localStorage.setItem(TOKEN_KEY, token);
 }
 
 export function getToken(): string | null {
   if (!authToken) {
     try {
-      authToken = localStorage.getItem('bonbook_token');
+      authToken = localStorage.getItem(TOKEN_KEY);
     } catch {
       // localStorage may not be available
     }
@@ -23,13 +25,17 @@ export function getToken(): string | null {
 export function clearToken() {
   authToken = null;
   try {
-    localStorage.removeItem('bonbook_token');
+    localStorage.removeItem(TOKEN_KEY);
   } catch {
     // ignore
   }
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  if (IS_DEMO) {
+    const { demoRequest } = await import('./demoApi');
+    return demoRequest<T>(path, options, getToken());
+  }
   const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

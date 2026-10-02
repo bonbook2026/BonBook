@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useTelegram } from './hooks/useTelegram';
 import { useAuth } from './hooks/useAuth';
@@ -11,13 +11,15 @@ import { Orders } from './pages/Orders';
 import { Success } from './pages/Success';
 import { PaymentFailed } from './pages/PaymentFailed';
 import { api } from './services/api';
+import { IS_DEMO } from './config/demo';
 
 function AppContent() {
-  const { initData } = useTelegram();
+  const { initData: telegramInitData } = useTelegram();
+  const initData = IS_DEMO ? '' : telegramInitData;
   const { user, loading, error, login, loginLocally, logout } = useAuth();
   const navigate = useNavigate();
   const [authAttempted, setAuthAttempted] = useState(false);
-  const [localLoginEnabled, setLocalLoginEnabled] = useState(false);
+  const [localLoginEnabled, setLocalLoginEnabled] = useState(IS_DEMO);
   const isLocalBrowser = import.meta.env.DEV &&
     ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
 
@@ -63,10 +65,11 @@ function AppContent() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2" dir="ltr">BonBook</h1>
-          {isLocalBrowser && localLoginEnabled ? (
+          {(IS_DEMO || isLocalBrowser) && localLoginEnabled ? (
             <>
               <p className="text-gray-600 text-sm leading-7 mb-5">
-                برای تست فروشگاه بدون باز کردن تلگرام، با حساب آزمایشی وارد شوید.
+                {IS_DEMO ? 'نسخهٔ نمایشی کتاب‌فروشی را با حساب آزمایشی تلگرام بررسی کنید.' :
+                  'برای تست فروشگاه بدون باز کردن تلگرام، با حساب آزمایشی وارد شوید.'}
               </p>
               {error && <p role="alert" className="text-red-600 text-sm mb-4">{error}</p>}
               <button
@@ -76,6 +79,7 @@ function AppContent() {
                 ورود آزمایشی تلگرام
               </button>
               <p className="text-xs text-gray-400 mt-4 leading-6">حساب آزمایشی به تلگرام متصل نیست.</p>
+              {IS_DEMO && <p className="text-xs text-gray-500 mt-2 leading-6">پرداخت و ارسال کتاب شبیه‌سازی می‌شوند. اطلاعات تست فقط در مرورگر خودت ذخیره می‌شود.</p>}
             </>
           ) : error ? (
             <p role="alert" className="text-red-500 text-sm mb-4">{error}</p>
@@ -91,12 +95,18 @@ function AppContent() {
 
   return (
     <>
-    {isLocalBrowser && user?.telegramId === 'local:telegram:bonbook' && (
-      <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between gap-3 text-xs text-amber-900">
-        <span>حساب آزمایشی تلگرام</span>
+    {(IS_DEMO || (isLocalBrowser && user?.telegramId === 'local:telegram:bonbook')) && (
+      <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900">
+        <span>{IS_DEMO ? 'نسخهٔ آزمایشی · بدون پرداخت و ارسال واقعی' : 'حساب آزمایشی تلگرام'}</span>
+        <div className="flex gap-1">
+        {IS_DEMO && <button onClick={async () => {
+          const { resetDemoState } = await import('./services/demoApi');
+          resetDemoState(); logout(); navigate('/', { replace: true });
+        }} className="rounded-lg px-3 py-1.5 font-medium hover:bg-amber-100">شروع دوبارهٔ تست</button>}
         <button onClick={() => { logout(); navigate('/', { replace: true }); }} className="rounded-lg px-3 py-1.5 font-medium hover:bg-amber-100">
           خروج از حساب آزمایشی
         </button>
+        </div>
       </div>
     )}
     <Routes>
@@ -115,9 +125,10 @@ function AppContent() {
 }
 
 export default function App() {
+  const Router = IS_DEMO ? HashRouter : BrowserRouter;
   return (
-    <BrowserRouter>
+    <Router>
       <AppContent />
-    </BrowserRouter>
+    </Router>
   );
 }

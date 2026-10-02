@@ -2,6 +2,26 @@
 
 A Persian, right-to-left Telegram bookstore built with React, Vite, Express and Prisma (SQLite).
 
+## Shareable preview
+
+Open [the BonBook preview](https://bonbook2026.github.io/BonBook/) and choose **ورود آزمایشی تلگرام**.
+The GitHub Pages demo runs entirely in the browser, with simulated Telegram login,
+an example exchange rate, profile editing, order history and simulated successful checkout.
+No real payment, Telegram authentication, book delivery or email takes place. Each
+browser has its own preview data. Use **شروع دوبارهٔ تست** to clear that data and start over.
+
+The `Publish BonBook preview` workflow tests, builds and deploys the demo after a push
+to `main`. The ordinary production build continues to use the real API and Telegram login.
+To check the demo locally:
+
+```powershell
+npm run test:demo --prefix client
+npm run build:demo --prefix client
+npm run preview:demo --prefix client
+```
+
+Open http://127.0.0.1:4173/BonBook/.
+
 ## Run locally
 
 Install Node.js 20 or newer, then run these commands from the project folder:

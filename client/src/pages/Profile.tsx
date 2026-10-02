@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
 import { api } from '../services/api';
 import { User } from '../types';
+import { IS_DEMO } from '../config/demo';
 
 export function Profile() {
   const [user, setUser] = useState<User | null>(null);
@@ -88,13 +89,13 @@ export function Profile() {
           </div>
 
           <div>
-            <label htmlFor="profile-email" className="block text-sm font-medium text-gray-700 mb-1">ایمیل دریافت کتاب (Gmail)</label>
+            <label htmlFor="profile-email" className="block text-sm font-medium text-gray-700 mb-1">{IS_DEMO ? 'ایمیل آزمایشی' : 'ایمیل دریافت کتاب (Gmail)'}</label>
             <input
               id="profile-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="example@gmail.com"
+              placeholder={IS_DEMO ? 'reader@example.com' : 'example@gmail.com'}
               dir="ltr"
               className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-left"
             />
