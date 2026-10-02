@@ -3,13 +3,10 @@ import { AuthRequest } from '../middleware/auth';
 import { UserService } from '../services/userService';
 import { BookService } from '../services/bookService';
 import { OrderService } from '../services/orderService';
-import { ExchangeRateService } from '../services/exchangeRateService';
-import { createExchangeRateProvider } from '../providers/exchangeRate';
 
 const userService = new UserService();
 const bookService = new BookService();
 const orderService = new OrderService();
-const exchangeRateService = new ExchangeRateService(createExchangeRateProvider());
 
 export async function createOrder(req: AuthRequest, res: Response, next: NextFunction) {
   try {
@@ -37,24 +34,12 @@ export async function createOrder(req: AuthRequest, res: Response, next: NextFun
       return;
     }
 
-    const { totalUsd, unitPrice } = bookService.calculateTotal(books.length);
-
-    let rateResult;
-    try {
-      rateResult = await exchangeRateService.getCurrentRate();
-    } catch {
-      res.status(503).json({ error: 'در حال حاضر امکان دریافت نرخ ارز وجود ندارد. لطفاً چند لحظه بعد دوباره تلاش کنید.' });
-      return;
-    }
-
-    const totalIrr = exchangeRateService.calculateIrrTotal(totalUsd, rateResult.rate);
+    const { unitPrice, totalIrr } = bookService.calculateTotal(books.length);
 
     const order = await orderService.createOrder({
       userId: user.id,
       books,
-      unitPriceUsd: unitPrice,
-      totalUsd,
-      exchangeRate: rateResult.rate,
+      unitPriceToman: unitPrice,
       totalIrr,
     });
 
@@ -62,29 +47,18 @@ export async function createOrder(req: AuthRequest, res: Response, next: NextFun
       order: {
         id: order.id,
         orderNumber: order.orderNumber,
-        books: order.items.map((item) => ({ title: item.bookTitle, priceUsd: item.priceUsd })),
+        books: order.items.map((item) => ({ title: item.bookTitle, priceToman: item.priceToman })),
         totalBooks: order.totalBooks,
-        totalUsd: order.totalUsd,
-        exchangeRate: order.exchangeRate,
+        totalToman: order.totalIrr / 10,
         totalIrr: order.totalIrr,
         status: order.status,
+        createdAt: order.createdAt,
+        paidAt: order.paidAt,
+        deliveryStatus: null,
       },
     });
   } catch (error) {
     next(error);
-  }
-}
-
-export async function getExchangeRate(_req: AuthRequest, res: Response, next: NextFunction) {
-  try {
-    const rateResult = await exchangeRateService.getCurrentRate();
-    res.json({
-      rate: rateResult.rate,
-      source: rateResult.source,
-      timestamp: rateResult.timestamp,
-    });
-  } catch {
-    res.status(503).json({ error: 'در حال حاضر امکان دریافت نرخ ارز وجود ندارد. لطفاً چند لحظه بعد دوباره تلاش کنید.' });
   }
 }
 
@@ -122,7 +96,7 @@ export async function getUserOrders(req: AuthRequest, res: Response, next: NextF
         id: o.id,
         orderNumber: o.orderNumber,
         totalBooks: o.totalBooks,
-        totalUsd: o.totalUsd,
+        totalToman: o.totalIrr / 10,
         totalIrr: o.totalIrr,
         status: o.status,
         createdAt: o.createdAt,

@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Icon } from '../components/Icon';
 import { api } from '../services/api';
+import { formatToman } from '../utils/money';
 
 interface OrderItem {
   id: number;
   orderNumber: string;
   totalBooks: number;
-  totalUsd: number;
   totalIrr: number;
   status: string;
   createdAt: string;
@@ -86,7 +86,7 @@ export function Orders() {
                 </div>
                 <div className="flex justify-between items-center gap-4 text-sm">
                   <span className="text-gray-500">{formatNumber(order.totalBooks)} کتاب</span>
-                  <span className="font-semibold text-gray-800">{formatNumber(order.totalIrr)} ریال</span>
+                  <span className="font-semibold text-gray-800">{formatToman(order.totalIrr / 10)}</span>
                 </div>
                 {deliveryInfo && (
                   <div className="mt-4 pt-3 border-t border-gray-100">

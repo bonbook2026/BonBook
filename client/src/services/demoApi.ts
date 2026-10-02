@@ -2,9 +2,8 @@ import type { Order, User } from '../types';
 
 const STATE_KEY = 'bonbook_preview_state_v1';
 const DEMO_TOKEN = 'bonbook-preview-session';
-const BOOK_PRICE = 8;
+const BOOK_PRICE_TOMAN = 1_500_000;
 const MAX_BOOKS = 10;
-const EXAMPLE_RATE = 600_000;
 
 interface DemoState {
   version: 1;
@@ -98,25 +97,22 @@ export async function demoRequest<T>(path: string, options: RequestInit, token: 
       saveState(state);
       result = profileResponse(user);
     } else if (path === '/books/info' && method === 'GET') {
-      result = { unitPriceUsd: BOOK_PRICE, maxBooksPerOrder: MAX_BOOKS };
-    } else if (path === '/orders/exchange-rate' && method === 'GET') {
-      result = { rate: EXAMPLE_RATE, source: 'demo', timestamp: new Date().toISOString() };
+      result = { unitPriceToman: BOOK_PRICE_TOMAN, maxBooksPerOrder: MAX_BOOKS };
     } else if (path === '/orders' && method === 'POST') {
       if (!profileResponse(state.user).profileComplete) throw new Error('پروفایل ناقص است');
       if (!Array.isArray(body.books) || !body.books.length || body.books.length > MAX_BOOKS ||
           body.books.some((book: { title?: unknown } | null) => typeof book?.title !== 'string' || !book.title.trim())) {
         throw new Error('عنوان کتاب‌ها و تعداد سفارش را بررسی کنید.');
       }
-      const books = body.books.map((book: { title: string }) => ({ title: book.title.trim(), priceUsd: BOOK_PRICE }));
+      const books = body.books.map((book: { title: string }) => ({ title: book.title.trim(), priceToman: BOOK_PRICE_TOMAN }));
       const id = state.nextOrderId++;
       const order: Order = {
         id,
         orderNumber: `DEMO-${String(id).padStart(4, '0')}`,
         books,
         totalBooks: books.length,
-        totalUsd: books.length * BOOK_PRICE,
-        exchangeRate: EXAMPLE_RATE,
-        totalIrr: books.length * BOOK_PRICE * EXAMPLE_RATE,
+        totalToman: books.length * BOOK_PRICE_TOMAN,
+        totalIrr: books.length * BOOK_PRICE_TOMAN * 10,
         status: 'PENDING',
         createdAt: new Date().toISOString(),
         paidAt: null,

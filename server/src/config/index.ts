@@ -20,11 +20,6 @@ export const config = {
     callbackUrl: process.env.BONCARD_CALLBACK_URL || '',
   },
 
-  exchangeRate: {
-    provider: process.env.EXCHANGE_RATE_PROVIDER || 'navasan',
-    apiKey: process.env.EXCHANGE_RATE_API_KEY || '',
-  },
-
   email: {
     provider: process.env.EMAIL_PROVIDER || 'smtp',
     smtp: {
@@ -37,7 +32,7 @@ export const config = {
   },
 
   book: {
-    priceUsd: parseFloat(process.env.BOOK_PRICE_USD || '8'),
+    priceToman: Number(process.env.BOOK_PRICE_TOMAN || '1500000'),
     maxBooksPerOrder: parseInt(process.env.MAX_BOOKS_PER_ORDER || '50', 10),
   },
 

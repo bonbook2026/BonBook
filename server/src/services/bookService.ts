@@ -3,7 +3,9 @@ import { config } from '../config';
 
 export class BookService {
   getUnitPrice(): number {
-    return config.book.priceUsd;
+    const price = config.book.priceToman;
+    if (!Number.isSafeInteger(price) || price <= 0) throw new Error('قیمت کتاب معتبر نیست');
+    return price;
   }
 
   getMaxBooksPerOrder(): number {
@@ -21,11 +23,14 @@ export class BookService {
     return prisma.book.findUnique({ where: { id } });
   }
 
-  calculateTotal(quantity: number): { totalUsd: number; unitPrice: number } {
+  calculateTotal(quantity: number): { totalToman: number; totalIrr: number; unitPrice: number } {
     const unitPrice = this.getUnitPrice();
+    const totalToman = quantity * unitPrice;
     return {
       unitPrice,
-      totalUsd: quantity * unitPrice,
+      totalToman,
+      // The payment provider expects IRR; this is a fixed unit conversion, not FX.
+      totalIrr: totalToman * 10,
     };
   }
 

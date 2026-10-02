@@ -17,26 +17,19 @@ export interface Order {
   id: number;
   orderNumber: string;
   totalBooks: number;
-  totalUsd: number;
+  totalToman?: number;
   totalIrr: number;
-  exchangeRate: number;
   status: string;
   createdAt: string;
   paidAt: string | null;
   deliveryStatus: string | null;
-  books?: { title: string; priceUsd: number }[];
-  items?: { bookTitle: string; priceUsd: number }[];
+  books?: { title: string; priceToman: number | null }[];
+  items?: { bookTitle: string; priceToman: number | null }[];
 }
 
 export interface BookInfo {
-  unitPriceUsd: number;
+  unitPriceToman: number;
   maxBooksPerOrder: number;
-}
-
-export interface ExchangeRate {
-  rate: number;
-  source: string;
-  timestamp: string;
 }
 
 export interface BookEntry {

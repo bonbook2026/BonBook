@@ -5,9 +5,7 @@ import { OrderStatus } from '../types';
 interface CreateOrderParams {
   userId: number;
   books: { title: string }[];
-  unitPriceUsd: number;
-  totalUsd: number;
-  exchangeRate: number;
+  unitPriceToman: number;
   totalIrr: number;
 }
 
@@ -20,14 +18,12 @@ export class OrderService {
         orderNumber,
         userId: params.userId,
         totalBooks: params.books.length,
-        totalUsd: params.totalUsd,
-        exchangeRate: params.exchangeRate,
         totalIrr: params.totalIrr,
         status: 'PENDING',
         items: {
           create: params.books.map((book) => ({
             bookTitle: book.title.trim(),
-            priceUsd: params.unitPriceUsd,
+            priceToman: params.unitPriceToman,
           })),
         },
       },

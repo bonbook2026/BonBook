@@ -32,12 +32,6 @@ export interface CreateOrderRequest {
   books: { title: string }[];
 }
 
-export interface ExchangeRateResult {
-  rate: number;
-  source: string;
-  timestamp: Date;
-}
-
 export interface PaymentInitResult {
   paymentId: string;
   paymentUrl: string;
@@ -55,10 +49,6 @@ export interface EmailSendResult {
   success: boolean;
   messageId?: string;
   error?: string;
-}
-
-export interface ExchangeRateProvider {
-  getUsdToIrrRate(): Promise<ExchangeRateResult>;
 }
 
 export interface PaymentProvider {

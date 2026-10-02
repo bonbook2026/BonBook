@@ -1,12 +1,13 @@
 import { PrismaClient } from '@prisma/client';
+import { config } from './config';
 
 const prisma = new PrismaClient();
 
 async function main() {
   const sampleBooks = [
-    { title: 'کتاب نمونه ۱', priceUsd: 8, isActive: true },
-    { title: 'کتاب نمونه ۲', priceUsd: 8, isActive: true },
-    { title: 'کتاب نمونه ۳', priceUsd: 8, isActive: true },
+    { title: 'کتاب نمونه ۱', priceToman: config.book.priceToman, isActive: true },
+    { title: 'کتاب نمونه ۲', priceToman: config.book.priceToman, isActive: true },
+    { title: 'کتاب نمونه ۳', priceToman: config.book.priceToman, isActive: true },
   ];
 
   for (const book of sampleBooks) {

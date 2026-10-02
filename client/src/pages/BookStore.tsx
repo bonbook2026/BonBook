@@ -5,11 +5,9 @@ import { Icon } from '../components/Icon';
 import { PurchaseSteps } from '../components/PurchaseSteps';
 import { api } from '../services/api';
 import { BookEntry, BookInfo } from '../types';
+import { formatToman } from '../utils/money';
 
 let idCounter = 0;
-const formatPrice = (value: number) => new Intl.NumberFormat('en-US', {
-  style: 'currency', currency: 'USD', maximumFractionDigits: 2,
-}).format(value);
 
 export function BookStore() {
   const navigate = useNavigate();
@@ -123,17 +121,17 @@ export function BookStore() {
         <aside className="order-basket" aria-label="سبد کتاب‌ها">
           <h2 className="basket-heading"><Icon name="book" className="w-5 h-5 text-brand-600" />سبد کتاب‌های تو</h2>
           <div className="basket-row"><span>تعداد کتاب‌ها</span><strong className="text-gray-800">{books.length.toLocaleString('fa-IR')} کتاب</strong></div>
-          <div className="basket-row"><span>قیمت هر کتاب</span><strong className="text-gray-800" dir="ltr">{formatPrice(info.unitPriceUsd)}</strong></div>
-          <div className="basket-row basket-total">
+          <div className="basket-row"><span>قیمت هر کتاب</span><strong className="text-gray-800">{formatToman(info.unitPriceToman)}</strong></div>
+          <div className="basket-row basket-total flex-wrap gap-y-2">
             <span>جمع فهرست خرید</span>
-            <strong className="text-2xl text-brand-600" dir="ltr" aria-live="polite">{formatPrice(books.length * info.unitPriceUsd)}</strong>
+            <strong className="text-2xl text-brand-600" aria-live="polite">{formatToman(books.length * info.unitPriceToman)}</strong>
           </div>
           <button type="submit" disabled={!allFilled} className="shop-button w-full">
             مرور سفارش
             <Icon name="arrow" className="w-5 h-5" />
           </button>
           {!allFilled && <p className="text-[11px] text-gray-500 mt-3 text-center">برای ادامه، نام همهٔ کتاب‌ها را وارد کن.</p>}
-          <p className="basket-help"><Icon name="mail" className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>کتاب‌ها به ایمیل حساب کاربری ارسال می‌شوند. مبلغ نهایی ریالی را در مرحلهٔ بعد می‌بینی.</span></p>
+          <p className="basket-help"><Icon name="mail" className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>کتاب‌ها به ایمیل حساب کاربری ارسال می‌شوند. مبلغ نهایی را در مرحلهٔ بعد مرور کن.</span></p>
         </aside>
       </form>
     </Layout>

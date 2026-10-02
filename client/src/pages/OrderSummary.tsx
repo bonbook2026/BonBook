@@ -4,16 +4,16 @@ import { Layout } from '../components/Layout';
 import { PurchaseSteps } from '../components/PurchaseSteps';
 import { api } from '../services/api';
 import { IS_DEMO } from '../config/demo';
+import { formatToman } from '../utils/money';
 
 export function OrderSummary() {
   const location = useLocation();
   const navigate = useNavigate();
   const books: { title: string }[] = location.state?.books || [];
-  const [rate, setRate] = useState<number | null>(null);
-  const [loadingRate, setLoadingRate] = useState(true);
+  const [loadingPrice, setLoadingPrice] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [unitPrice, setUnitPrice] = useState(8);
+  const [unitPrice, setUnitPrice] = useState<number | null>(null);
 
   useEffect(() => {
     if (books.length === 0) {
@@ -21,22 +21,18 @@ export function OrderSummary() {
       return;
     }
 
-    Promise.all([api.orders.getExchangeRate(), api.books.getInfo()])
-      .then(([rateResult, bookInfo]) => {
-        setRate(rateResult.rate);
-        setUnitPrice(bookInfo.unitPriceUsd);
-        setLoadingRate(false);
+    api.books.getInfo()
+      .then((bookInfo) => {
+        setUnitPrice(bookInfo.unitPriceToman);
+        setLoadingPrice(false);
       })
       .catch(() => {
-        setError('در حال حاضر امکان دریافت نرخ ارز وجود ندارد. لطفاً چند لحظه بعد دوباره تلاش کنید.');
-        setLoadingRate(false);
+        setError('اطلاعات قیمت دریافت نشد. لطفاً دوباره تلاش کنید.');
+        setLoadingPrice(false);
       });
   }, [books.length, navigate]);
 
-  const totalUsd = books.length * unitPrice;
-  const totalIrr = rate ? totalUsd * rate : 0;
-
-  const formatNumber = (n: number) => n.toLocaleString('fa-IR');
+  const totalToman = books.length * (unitPrice ?? 0);
 
   const handlePay = async () => {
     setError(null);
@@ -59,7 +55,7 @@ export function OrderSummary() {
     }
   };
 
-  if (loadingRate) {
+  if (loadingPrice) {
     return (
       <Layout title="خلاصه سفارش" showBack>
         <PurchaseSteps current={2} />
@@ -95,24 +91,12 @@ export function OrderSummary() {
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">قیمت هر کتاب</span>
-              <span className="font-medium" dir="ltr">${unitPrice}</span>
+              <span className="font-medium">{unitPrice === null ? '—' : formatToman(unitPrice)}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">جمع</span>
-              <span className="font-bold" dir="ltr">${totalUsd}</span>
+            <div className="flex flex-wrap gap-2 justify-between pt-2 border-t border-gray-100">
+              <span className="text-gray-700 font-medium">مبلغ قابل پرداخت</span>
+              <span className="font-bold text-lg text-brand-600">{unitPrice === null ? '—' : formatToman(totalToman)}</span>
             </div>
-            {rate && (
-              <>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">{IS_DEMO ? 'نرخ دلار آزمایشی' : 'نرخ دلار'}</span>
-                  <span className="font-medium">{formatNumber(rate)} ریال</span>
-                </div>
-                <div className="flex justify-between pt-2 border-t border-gray-100">
-                  <span className="text-gray-700 font-medium">مبلغ قابل پرداخت</span>
-                  <span className="font-bold text-lg text-brand-600">{formatNumber(totalIrr)} ریال</span>
-                </div>
-              </>
-            )}
           </div>
         </div>
 
@@ -122,7 +106,7 @@ export function OrderSummary() {
 
         <button
           onClick={handlePay}
-          disabled={creating || !rate}
+          disabled={creating || unitPrice === null}
           className="w-full bg-brand-600 text-white py-3 rounded-xl font-medium hover:bg-brand-700 active:bg-brand-800 transition-colors disabled:opacity-50"
         >
           {creating ? 'در حال پردازش...' : IS_DEMO ? 'شبیه‌سازی پرداخت موفق' : 'پرداخت'}

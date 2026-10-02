@@ -6,7 +6,7 @@ A Persian, right-to-left Telegram bookstore built with React, Vite, Express and 
 
 Open [the BonBook preview](https://bonbook2026.github.io/BonBook/) and choose **ورود آزمایشی تلگرام**.
 The GitHub Pages demo runs entirely in the browser, with simulated Telegram login,
-an example exchange rate, profile editing, order history and simulated successful checkout.
+fixed Toman prices, profile editing, order history and simulated successful checkout.
 No real payment, Telegram authentication, book delivery or email takes place. Each
 browser has its own preview data. Use **شروع دوبارهٔ تست** to clear that data and start over.
 
@@ -41,7 +41,13 @@ The bookstore includes a dashboard, a book-title order form, an order summary, o
 
 ## Configure integrations
 
-Set real credentials in the ignored `server/.env` file. The Telegram bot, BonCard payment provider, exchange-rate provider and SMTP delivery use their own settings from `.env.example`. Local test login simulates authentication; it does not simulate payment, exchange rates or email delivery.
+Set real credentials in the ignored `server/.env` file. The Telegram bot, BonCard payment provider and SMTP delivery use their own settings from `.env.example`. Local test login simulates authentication; it does not simulate payment or email delivery.
+
+Each book costs **1,500,000 Toman**, configured with `BOOK_PRICE_TOMAN`. Totals use
+this fixed price and need no exchange-rate provider. The payment integration uses
+IRR internally (10 IRR per Toman), while the interface displays Toman. Existing
+orders retain their original totals. Apply database updates with `npx prisma migrate deploy`
+from `server/`, then regenerate the Prisma client with `npx prisma generate`.
 
 Do not commit real credentials or local databases. `.env.example` contains configuration examples only.
 

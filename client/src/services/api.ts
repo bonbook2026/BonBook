@@ -1,4 +1,4 @@
-import { AuthResponse } from '../types';
+import { AuthResponse, BookInfo, Order } from '../types';
 import { IS_DEMO } from '../config/demo';
 
 const BASE_URL = '/api';
@@ -91,35 +91,21 @@ export const api = {
   },
 
   books: {
-    getInfo: () => request<{ unitPriceUsd: number; maxBooksPerOrder: number }>('/books/info'),
+    getInfo: () => request<BookInfo>('/books/info'),
   },
 
   orders: {
     create: (books: { title: string }[]) =>
-      request<{ order: { id: number; orderNumber: string; books: { title: string; priceUsd: number }[]; totalBooks: number; totalUsd: number; exchangeRate: number; totalIrr: number; status: string } }>(
+      request<{ order: Order }>(
         '/orders',
         { method: 'POST', body: JSON.stringify({ books }) }
       ),
 
     getAll: () =>
-      request<{
-        orders: {
-          id: number;
-          orderNumber: string;
-          totalBooks: number;
-          totalUsd: number;
-          totalIrr: number;
-          status: string;
-          createdAt: string;
-          paidAt: string | null;
-          deliveryStatus: string | null;
-        }[];
-      }>('/orders'),
+      request<{ orders: Order[] }>('/orders'),
 
     getById: (id: number) => request<{ order: unknown }>(`/orders/${id}`),
 
-    getExchangeRate: () =>
-      request<{ rate: number; source: string; timestamp: string }>('/orders/exchange-rate'),
   },
 
   payments: {

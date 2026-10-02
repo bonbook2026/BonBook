@@ -1,72 +1,56 @@
-import { describe, it, expect } from 'vitest';
-import { ExchangeRateService } from '../src/services/exchangeRateService';
-import { ExchangeRateProvider, ExchangeRateResult } from '../src/types';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import prisma from '../src/lib/prisma';
+import { createOrder } from '../src/controllers/orderController';
+import { BookService } from '../src/services/bookService';
+import { config } from '../src/config';
+import type { AuthRequest } from '../src/middleware/auth';
+import type { Response } from 'express';
 
-class MockExchangeRateProvider implements ExchangeRateProvider {
-  private rate: number;
+vi.mock('../src/lib/prisma', () => ({ default: {
+  user: { findUnique: vi.fn() },
+  order: { create: vi.fn() },
+} }));
 
-  constructor(rate: number) {
-    this.rate = rate;
-  }
-
-  async getUsdToIrrRate(): Promise<ExchangeRateResult> {
-    return { rate: this.rate, source: 'mock', timestamp: new Date() };
-  }
-}
-
-describe('ExchangeRateService', () => {
-  it('should get current rate', async () => {
-    const service = new ExchangeRateService(new MockExchangeRateProvider(600000));
-    const result = await service.getCurrentRate();
-    expect(result.rate).toBe(600000);
+describe('Fixed Toman checkout', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    config.book.priceToman = 1500000;
   });
 
-  it('should cache rate within expiry', async () => {
-    let callCount = 0;
-    const provider: ExchangeRateProvider = {
-      async getUsdToIrrRate() {
-        callCount++;
-        return { rate: 600000, source: 'mock', timestamp: new Date() };
-      },
-    };
-
-    const service = new ExchangeRateService(provider);
-    await service.getCurrentRate();
-    await service.getCurrentRate();
-    expect(callCount).toBe(1);
+  it('uses server pricing, ignores supplied totals, and stores the correct payment amount', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 1, telegramId: 'test', firstName: 'Test', lastName: 'Reader', email: 'reader@example.com',
+      createdAt: new Date(), updatedAt: new Date(),
+    });
+    vi.mocked(prisma.order.create).mockImplementation(async (input: any) => ({
+      id: 1, ...input.data, items: input.data.items.create,
+    }) as any);
+    const json = vi.fn();
+    const res = { status: vi.fn().mockReturnThis(), json } as unknown as Response;
+    const next = vi.fn();
+    const req = { userId: 1, body: {
+      books: [{ title: 'Book A' }, { title: 'Book B' }],
+      totalIrr: 1, totalToman: 1, exchangeRate: 1, unitPriceToman: 1,
+    } } as unknown as AuthRequest;
+    await createOrder(req, res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(prisma.order.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      totalBooks: 2, totalIrr: 30000000,
+      items: { create: [
+        { bookTitle: 'Book A', priceToman: 1500000 },
+        { bookTitle: 'Book B', priceToman: 1500000 },
+      ] },
+    }) }));
+    expect(json).toHaveBeenCalledWith(expect.objectContaining({ order: expect.objectContaining({
+      totalToman: 3000000, totalIrr: 30000000,
+    }) }));
   });
 
-  it('should calculate IRR total correctly', () => {
-    const service = new ExchangeRateService(new MockExchangeRateProvider(600000));
-
-    expect(service.calculateIrrTotal(8, 600000)).toBe(4800000);
-    expect(service.calculateIrrTotal(24, 600000)).toBe(14400000);
-    expect(service.calculateIrrTotal(24, 1000000)).toBe(24000000);
-  });
-
-  it('should round IRR total to integer', () => {
-    const service = new ExchangeRateService(new MockExchangeRateProvider(600001));
-    const result = service.calculateIrrTotal(3, 600001);
-    expect(Number.isInteger(result)).toBe(true);
-  });
-});
-
-describe('Price calculation integration', () => {
-  it('should correctly calculate: 1 x $8 = $8', () => {
-    expect(1 * 8).toBe(8);
-  });
-
-  it('should correctly calculate: 2 x $8 = $16', () => {
-    expect(2 * 8).toBe(16);
-  });
-
-  it('should correctly calculate: 10 x $8 = $80', () => {
-    expect(10 * 8).toBe(80);
-  });
-
-  it('should convert USD to IRR correctly', () => {
-    const rate = 600000;
-    const totalUsd = 24;
-    expect(Math.round(totalUsd * rate)).toBe(14400000);
+  it('rejects invalid configured prices instead of charging an incorrect amount', () => {
+    for (const price of [0, -1, 1.5, NaN]) {
+      config.book.priceToman = price;
+      expect(() => new BookService().calculateTotal(1)).toThrow();
+    }
   });
 });

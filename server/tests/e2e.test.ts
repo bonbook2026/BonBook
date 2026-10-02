@@ -2,22 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { TelegramAuthService } from '../src/services/telegramAuthService';
 import { UserService } from '../src/services/userService';
 import { BookService } from '../src/services/bookService';
-import { ExchangeRateService } from '../src/services/exchangeRateService';
-import { ExchangeRateProvider, ExchangeRateResult, PaymentProvider, PaymentInitResult, PaymentVerifyResult, EmailProvider, EmailSendResult } from '../src/types';
+import { PaymentProvider, PaymentInitResult, PaymentVerifyResult, EmailProvider, EmailSendResult } from '../src/types';
 import { createTelegramInitData, TEST_BOT_TOKEN } from './helpers';
-
-class MockExchangeRateProvider implements ExchangeRateProvider {
-  async getUsdToIrrRate(): Promise<ExchangeRateResult> {
-    return { rate: 600000, source: 'mock', timestamp: new Date() };
-  }
-}
 
 class MockPaymentProvider implements PaymentProvider {
   async initPayment(orderId: number, amountIrr: number, _description: string): Promise<PaymentInitResult> {
     return { paymentId: `pay_${orderId}`, paymentUrl: `https://pay.test/${orderId}?amount=${amountIrr}` };
   }
   async verifyPayment(paymentId: string, _orderId: number): Promise<PaymentVerifyResult> {
-    return { verified: true, paymentId, amount: 14400000, refId: 'ref_123' };
+    return { verified: true, paymentId, amount: 45000000, refId: 'ref_123' };
   }
 }
 
@@ -66,32 +59,24 @@ describe('E2E Flow', () => {
     const validation = bookService.validateBookList(books);
     expect(validation.valid).toBe(true);
 
-    // Step 5: Calculate USD Total
-    const { totalUsd, unitPrice } = bookService.calculateTotal(books.length);
-    expect(totalUsd).toBe(24);
-    expect(unitPrice).toBe(8);
+    // Fixed Toman prices; the provider receives IRR without a currency-rate lookup.
+    const { totalToman, totalIrr, unitPrice } = bookService.calculateTotal(books.length);
+    expect(totalToman).toBe(4500000);
+    expect(unitPrice).toBe(1500000);
+    expect(totalIrr).toBe(45000000);
 
-    // Step 6: Get Exchange Rate
-    const exchangeRateService = new ExchangeRateService(new MockExchangeRateProvider());
-    const rateResult = await exchangeRateService.getCurrentRate();
-    expect(rateResult.rate).toBe(600000);
-
-    // Step 7: Calculate IRR Total
-    const totalIrr = exchangeRateService.calculateIrrTotal(totalUsd, rateResult.rate);
-    expect(totalIrr).toBe(14400000);
-
-    // Step 8: Initiate Payment
+    // Step 6: Initiate Payment
     const paymentProvider = new MockPaymentProvider();
     const paymentResult = await paymentProvider.initPayment(1, totalIrr, 'Test');
     expect(paymentResult.paymentId).toBeTruthy();
     expect(paymentResult.paymentUrl).toBeTruthy();
 
-    // Step 9: Verify Payment
+    // Step 7: Verify Payment
     const verifyResult = await paymentProvider.verifyPayment(paymentResult.paymentId, 1);
     expect(verifyResult.verified).toBe(true);
     expect(verifyResult.amount).toBe(totalIrr);
 
-    // Step 10: Send Books via Email
+    // Step 8: Send Books via Email
     const emailProvider = new MockEmailProvider();
     const emailResult = await emailProvider.sendBookEmail(
       'ali@gmail.com',
@@ -124,22 +109,9 @@ describe('E2E Flow', () => {
     expect(result.valid).toBe(false);
   });
 
-  it('should store exchange rate with order data', async () => {
-    const exchangeRateService = new ExchangeRateService(new MockExchangeRateProvider());
-    const rate = await exchangeRateService.getCurrentRate();
-
-    const orderData = {
-      exchangeRate: rate.rate,
-      totalUsd: 24,
-      totalIrr: exchangeRateService.calculateIrrTotal(24, rate.rate),
-    };
-
-    expect(orderData.exchangeRate).toBe(600000);
-    expect(orderData.totalIrr).toBe(14400000);
-
-    // Rate changes shouldn't affect stored order
-    const newRate = 700000;
-    expect(orderData.totalIrr).toBe(14400000); // Still the old amount
-    expect(orderData.totalIrr).not.toBe(24 * newRate);
+  it('should snapshot fixed prices for an order', () => {
+    const orderData = new BookService().calculateTotal(3);
+    expect(orderData.totalToman).toBe(4500000);
+    expect(orderData.totalIrr).toBe(45000000);
   });
 });

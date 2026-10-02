@@ -7,7 +7,7 @@ const bookService = new BookService();
 export async function getBookInfo(_req: AuthRequest, res: Response, next: NextFunction) {
   try {
     res.json({
-      unitPriceUsd: bookService.getUnitPrice(),
+      unitPriceToman: bookService.getUnitPrice(),
       maxBooksPerOrder: bookService.getMaxBooksPerOrder(),
     });
   } catch (error) {

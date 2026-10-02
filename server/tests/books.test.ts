@@ -7,18 +7,21 @@ describe('BookService', () => {
   describe('calculateTotal', () => {
     it('should calculate for 1 book', () => {
       const result = bookService.calculateTotal(1);
-      expect(result.totalUsd).toBe(8);
-      expect(result.unitPrice).toBe(8);
+      expect(result.totalToman).toBe(1500000);
+      expect(result.unitPrice).toBe(1500000);
+      expect(result.totalIrr).toBe(15000000);
     });
 
     it('should calculate for 2 books', () => {
       const result = bookService.calculateTotal(2);
-      expect(result.totalUsd).toBe(16);
+      expect(result.totalToman).toBe(3000000);
+      expect(result.totalIrr).toBe(30000000);
     });
 
     it('should calculate for 10 books', () => {
       const result = bookService.calculateTotal(10);
-      expect(result.totalUsd).toBe(80);
+      expect(result.totalToman).toBe(15000000);
+      expect(result.totalIrr).toBe(150000000);
     });
   });
 

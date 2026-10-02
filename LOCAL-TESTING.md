@@ -26,6 +26,6 @@ non-loopback connections, and for non-local Host or Origin headers. Its marked
 session tokens are also rejected when local mode is disabled or in production.
 Real Telegram login still validates Telegram's signed init data normally.
 
-This simulates login only. Exchange-rate, payment, and email integrations retain
-their existing behavior and still need their own provider configuration for a
+This simulates login only. Prices are fixed in Toman. Payment and email integrations
+retain their existing behavior and need their own provider configuration for a
 complete checkout test.
