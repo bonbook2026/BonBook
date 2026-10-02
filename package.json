@@ -1,0 +1,18 @@
+{
+  "name": "bonbook",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BonBook — Telegram Web App for selling books",
+  "scripts": {
+    "dev:local": "node scripts/dev-local.mjs",
+    "dev:server": "cd server && npm run dev",
+    "dev:server:local": "cd server && npm run dev:local",
+    "dev:client": "cd client && npm run dev",
+    "build:server": "cd server && npm run build",
+    "build:client": "cd client && npm run build",
+    "test": "cd server && npm test",
+    "db:migrate": "cd server && npx prisma migrate dev",
+    "db:generate": "cd server && npx prisma generate",
+    "db:seed": "cd server && npx ts-node src/seed.ts"
+  }
+}

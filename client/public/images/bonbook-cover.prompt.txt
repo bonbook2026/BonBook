@@ -1,0 +1,11 @@
+Generated with the built-in image_gen tool, transparent_background: true.
+
+Use case: stylized-concept
+Asset type: transparent book illustration for the top of the BonBook bookstore dashboard.
+Primary request: a polished graphic of one closed hardcover book with the exact word "BonBook" clearly printed on the front cover.
+Scene/backdrop: genuinely transparent background, isolated cutout.
+Subject: a single vivid royal blue hardcover book, warm ivory page edges, a slightly rounded spine and premium subtle cover texture.
+Style/medium: tasteful modern 3D editorial illustration, clean friendly shapes, soft studio lighting, crisp edges, restrained detail.
+Composition/framing: centered portrait book, near-frontal three-quarter view with only a gentle angle so the front cover and its text remain very legible; the entire book visible with comfortable transparent margin. A subtle soft contact shadow under the book.
+Text (verbatim): "BonBook" — B o n B o o k, exact capitalization, large clean white sans-serif lettering centered on the blue front cover. This is the only text.
+Constraints: one book only, no people, no extra props, no decorative symbols, no watermark, no frame, no extra words. High-quality product illustration that stays readable at small dashboard sizes.

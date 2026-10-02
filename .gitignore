@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+.github-auth.local/
+*.tsbuildinfo
+*.db
+*.db-*
+*.db-journal
+prisma/*.db
+prisma/*.db-journal
+.DS_Store
+*.log
+coverage/
+.vite/

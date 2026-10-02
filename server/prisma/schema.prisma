@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         Int      @id @default(autoincrement())
+  telegramId String   @unique @map("telegram_id")
+  firstName  String?  @map("first_name")
+  lastName   String?  @map("last_name")
+  email      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  orders Order[]
+
+  @@map("users")
+}
+
+model Book {
+  id        Int      @id @default(autoincrement())
+  title     String
+  fileUrl   String?  @map("file_url")
+  priceUsd  Float    @default(8) @map("price_usd")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  orderItems OrderItem[]
+
+  @@map("books")
+}
+
+model Order {
+  id           Int      @id @default(autoincrement())
+  orderNumber  String   @unique @map("order_number")
+  userId       Int      @map("user_id")
+  totalBooks   Int      @map("total_books")
+  totalUsd     Float    @map("total_usd")
+  exchangeRate Float    @map("exchange_rate")
+  totalIrr     Float    @map("total_irr")
+  status       String   @default("PENDING")
+  createdAt    DateTime @default(now()) @map("created_at")
+  paidAt       DateTime? @map("paid_at")
+
+  user       User        @relation(fields: [userId], references: [id])
+  items      OrderItem[]
+  payments   Payment[]
+  deliveries Delivery[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        Int    @id @default(autoincrement())
+  orderId   Int    @map("order_id")
+  bookId    Int?   @map("book_id")
+  bookTitle String @map("book_title")
+  priceUsd  Float  @map("price_usd")
+
+  order Order @relation(fields: [orderId], references: [id])
+  book  Book? @relation(fields: [bookId], references: [id])
+
+  @@map("order_items")
+}
+
+model Payment {
+  id         Int       @id @default(autoincrement())
+  orderId    Int       @map("order_id")
+  provider   String
+  paymentId  String?   @map("payment_id")
+  amountIrr  Float     @map("amount_irr")
+  status     String    @default("PENDING")
+  verifiedAt DateTime? @map("verified_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  rawData    String?   @map("raw_data")
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("payments")
+}
+
+model Delivery {
+  id           Int       @id @default(autoincrement())
+  orderId      Int       @map("order_id")
+  email        String
+  status       String    @default("PENDING")
+  sentAt       DateTime? @map("sent_at")
+  errorMessage String?   @map("error_message")
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("deliveries")
+}
