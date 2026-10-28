@@ -44,7 +44,9 @@ builds the code, runs migrations against its own database, then selects the
 release. It keeps the previous release and backs up the existing data before
 updates. For the current server, include `bonbook-preproduction.nginx.conf` only
 inside the existing HTTPS virtual host, validate with `nginx -t`, then gracefully
-reload Nginx. No other service needs restarting. The preproduction client uses
+reload Nginx. The reviewed `enable-preproduction-proxy.py` helper performs this
+single-include change with a private backup, syntax checks and rollback. No other
+service needs restarting. The preproduction client uses
 relative assets and hash routing so its public path can move without rebuilding.
 
 ## Transfer to another server

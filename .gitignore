@@ -16,3 +16,4 @@ prisma/*.db-journal
 *.log
 coverage/
 .vite/
+__pycache__/

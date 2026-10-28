@@ -44,7 +44,7 @@ runuser -u bonbook -- env NPM_CONFIG_CACHE="$root/shared/npm-cache" NODE_ENV=dev
     npm ci --prefix server --no-audit --no-fund
     npm run test:demo --prefix client
     npm test --prefix server
-    npm run build:preproduction
+    NODE_ENV=production npm run build:preproduction
     cd server
     DATABASE_URL=file:/srv/bonbook-preproduction/shared/data/bonbook.db ./node_modules/.bin/prisma migrate deploy
 ' _ "$release"
