@@ -9,6 +9,7 @@ import {LibraryBook,LibraryPage} from '../types';
 import {useAuth} from '../hooks/useAuth';
 import {recordedPages} from '../utils/bookAudioQueue';
 import {useNarration} from '../hooks/useNarration';
+import {useTheme} from '../hooks/useTheme';
 
 function preference(key:string,fallback:string){try{return localStorage.getItem(key)||fallback;}catch{return fallback;}}
 function remember(key:string,value:string){try{localStorage.setItem(key,value);}catch{/* Reading works without browser storage. */}}
@@ -18,7 +19,8 @@ const fa=(value:number)=>value.toLocaleString('fa-IR');
 export function Reader(){
   const params=useParams(),bookId=Number(params.bookId),number=Number(params.page),navigate=useNavigate(),location=useLocation();
   const [book,setBook]=useState<LibraryBook|null>(null),[loadedPage,setPage]=useState<LibraryPage|null>(null),[facing,setFacing]=useState<LibraryPage|null>(null);
-  const [theme,setTheme]=useState(()=>preference('bonbook_reader_theme','night')==='night'?'night':'paper');
+  const {theme:siteTheme,setTheme:setSiteTheme}=useTheme(),theme=siteTheme==='night'?'night':'paper';
+  const setTheme=(value:string)=>setSiteTheme(value==='night'?'night':'day');
   const [view,setView]=useState(()=>preference('bonbook_reader_view','spread')==='single'?'single':'spread');
   const [fontSize,setFontSize]=useState(17),[error,setError]=useState(''),[follow,setFollow]=useState(true),[toc,setToc]=useState(false),[tocMode,setTocMode]=useState<'contents'|'pages'>('contents');
   const [captions,setCaptions]=useState(true),[zoom,setZoom]=useState(false),[bookmark,setBookmark]=useState<number|null>(null);
@@ -28,7 +30,7 @@ export function Reader(){
   useEffect(()=>()=>stopAudio.current(),[bookId]);
   useEffect(()=>{const media=window.matchMedia('(min-width: 521px)'),change=()=>setWide(media.matches);media.addEventListener('change',change);return()=>media.removeEventListener('change',change);},[]);
   useEffect(()=>{document.body.classList.add('bonbook-reading');return()=>document.body.classList.remove('bonbook-reading','bonbook-reading-night');},[]);
-  useEffect(()=>{document.body.classList.toggle('bonbook-reading-night',theme==='night');remember('bonbook_reader_theme',theme);const meta=document.querySelector('meta[name="theme-color"]'),old=meta?.getAttribute('content');meta?.setAttribute('content',theme==='night'?'#0b1426':'#f6f4ed');return()=>{if(old)meta?.setAttribute('content',old);};},[theme]);
+  useEffect(()=>{document.body.classList.toggle('bonbook-reading-night',theme==='night');},[theme]);
   useEffect(()=>{remember('bonbook_reader_view',view);},[view]);
   useEffect(()=>{setBookmark(Number(preference(`bonbook_bookmark_${bookId}`,''))||null);},[bookId]);
   useEffect(()=>{if(terms.length)setCaptions(false);},[location.key]);

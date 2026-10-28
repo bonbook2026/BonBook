@@ -2,12 +2,15 @@ import { ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { Icon } from './Icon';
 import { useAuth } from '../hooks/useAuth';
+import { ThemeToggle } from './ThemeToggle';
 
 interface LayoutProps {
   children: ReactNode;
   title?: string;
   showBack?: boolean;
   wide?: boolean;
+  className?: string;
+  footerText?: string;
 }
 
 const navigation = [
@@ -17,7 +20,7 @@ const navigation = [
   { icon: 'user' as const, label: 'حساب کاربری', path: '/profile' },
 ];
 
-export function Layout({ children, title, showBack, wide }: LayoutProps) {
+export function Layout({ children, title, showBack, wide, className='', footerText='یک کتاب، یک شروع تازه.' }: LayoutProps) {
   const { pathname } = useLocation();
   const { user } = useAuth();
   const items = user?.role === 'OWNER' || user?.role === 'ADMIN' ? [...navigation, {icon:'shield' as const,label:'مدیریت',path:'/admin'}] : navigation;
@@ -26,7 +29,7 @@ export function Layout({ children, title, showBack, wide }: LayoutProps) {
   const inShop = ['/shop','/store','/orders','/order-summary','/success','/payment-failed'].includes(pathname);
 
   return (
-    <div className="bookshop-shell">
+    <div className={'bookshop-shell '+className}>
       <header className="shop-header">
         <div className="shop-header-inner">
           <Link to="/library" className="shop-brand" aria-label="BonBook، کتابخانه">
@@ -43,9 +46,9 @@ export function Layout({ children, title, showBack, wide }: LayoutProps) {
               </NavLink>
             ))}
           </nav>
-          <Link to="/profile" className="mobile-account" aria-label="حساب کاربری">
+          <div className="site-header-actions"><ThemeToggle/><Link to="/profile" className="mobile-account" aria-label="حساب کاربری">
             <Icon name="user" className="w-5 h-5" />
-          </Link>
+          </Link></div>
         </div>
       </header>
       {inShop && <nav className="store-subnav" aria-label="منوی فروشگاه"><Link to="/shop">خانهٔ فروشگاه</Link><Link to="/store">خرید کتاب</Link><Link to="/orders">سفارش‌های من</Link></nav>}
@@ -65,7 +68,7 @@ export function Layout({ children, title, showBack, wide }: LayoutProps) {
         {children}
         <footer className="shop-footer">
           <Icon name="book" className="w-4 h-4" />
-          <span>یک کتاب، یک شروع تازه.</span>
+          <span>{footerText}</span>
           <span className="shop-footer-brand" dir="ltr">BonBook</span>
         </footer>
       </main>

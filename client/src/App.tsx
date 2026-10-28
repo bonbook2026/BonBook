@@ -3,6 +3,7 @@ import { ReactNode, useEffect, useRef } from 'react';
 import { useTelegram } from './hooks/useTelegram';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { NarrationProvider } from './hooks/useNarration';
+import { ThemeProvider } from './hooks/useTheme';
 import { Library } from './pages/Library';
 import { LibrarySearch } from './pages/LibrarySearch';
 import { Reader } from './pages/Reader';
@@ -51,4 +52,4 @@ function AppContent(){
     <Route path="*" element={<Navigate to="/library" replace/>}/>
   </Routes></>;
 }
-export default function App(){const Router=IS_DEMO?HashRouter:BrowserRouter;return <Router><AuthProvider><NarrationProvider><AppContent/></NarrationProvider></AuthProvider></Router>;}
+export default function App(){const Router=IS_DEMO?HashRouter:BrowserRouter;return <ThemeProvider><Router><AuthProvider><NarrationProvider><AppContent/></NarrationProvider></AuthProvider></Router></ThemeProvider>;}

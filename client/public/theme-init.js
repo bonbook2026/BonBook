@@ -1,0 +1,1 @@
+(function(){try{var saved=localStorage.getItem('bonbook_theme');var theme=saved==='day'||saved==='night'?saved:localStorage.getItem('bonbook_reader_theme')==='paper'?'day':'night';document.documentElement.dataset.theme=theme;}catch(_){document.documentElement.dataset.theme='night';}})();
