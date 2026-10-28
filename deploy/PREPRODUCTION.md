@@ -153,3 +153,23 @@ Pass a private JSON file containing `file`, `filename`, `title`, `author`,
 `category`, optional `parentCategory`, `tags` and optional `coverSha256`.
 It creates a draft and stages an OCR job using an existing verified owner;
 it never creates or exports authentication tokens.
+
+## Chapter navigation
+
+The book editor has a separate table of contents. Administrators can add rows,
+paste `title | page` lines (Persian/Arabic digits work; prefix `>` for a subheading),
+reorder entries, and adjust all destinations by a printed/file page offset.
+Suggestions can be extracted from a selected range of up to 40 imported pages.
+OCR suggestions are never saved automatically. Review titles and destinations
+against the original PDF, then save. Every destination must exist in the book.
+Deleting a reading page also removes its contents links. The reader offers both
+chapter navigation and the full page list, and stops narration before a jump.
+
+Uploaded narration supports administrator-authored line start times, stored with
+exact text offsets on each reading page. In the audio editor, play the recording
+and mark the beginning of each segment, then save the page. Text/audio changes
+clear old timing cues in the editor; API updates that omit cues also invalidate
+them if the source text or audio changes. The reader highlights the current line
+and optionally scrolls it into view. Playback rate changes use media time.
+Without saved cues, recorded audio uses an explicitly labelled approximate text
+position. Browser narration uses utterance boundaries and spoken-word offsets.

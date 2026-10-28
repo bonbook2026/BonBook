@@ -5,6 +5,7 @@ import { HttpError } from '../lib/httpError';
 import { bookJson, pageJson, positiveId } from './libraryController';
 import { normalizePersian } from '../services/searchService';
 import { parseAdminTarget } from '../services/accessService';
+import {validateAudioCues} from '../services/audioCues';
 
 function text(value: unknown, max: number, required = false) {
   if (typeof value !== 'string' || value.length > max || (required && !value.trim())) throw new HttpError(400, 'متن و طول فیلدها را بررسی کنید.');
@@ -77,12 +78,15 @@ export async function savePage(req: AuthRequest, res: Response, next: NextFuncti
     if(req.method==='GET'){const page=await prisma.libraryPage.findUnique({where:{bookId_number:{bookId,number}}});if(!page)throw new HttpError(404,'صفحه پیدا نشد.');res.json({page:pageJson(page)});return;}
     if (req.method === 'DELETE') {
       await prisma.libraryPage.deleteMany({ where: { bookId, number } });
+      await prisma.bookContents.deleteMany({where:{bookId,pageNumber:number}});
       if (!await prisma.libraryPage.count({ where: { bookId } })) await prisma.libraryBook.update({ where: { id: bookId }, data: { status: 'DRAFT' } });
       res.json({ ok: true }); return;
     }
     const heading = text(req.body.heading, 200), content = text(req.body.content, 40_000, true), keywords = text(req.body.keywords, 600);
     const audioAssetId = await asset(req.body.audioAssetId, 'audio');
-    const data = { heading, content, keywords, audioAssetId, searchText: normalizePersian(heading + ' ' + keywords + ' ' + content) };
+    const existing=await prisma.libraryPage.findUnique({where:{bookId_number:{bookId,number}},select:{content:true,audioAssetId:true,audioCues:true}});
+    const audioCues=req.body.audioCues===undefined?(existing?.content===content&&existing?.audioAssetId===audioAssetId?existing.audioCues:'[]'):validateAudioCues(req.body.audioCues,content,audioAssetId);
+    const data = { heading, content, keywords, audioAssetId,audioCues,searchText: normalizePersian(heading + ' ' + keywords + ' ' + content) };
     const page = await prisma.libraryPage.upsert({ where: { bookId_number: { bookId, number } }, create: { bookId, number, ...data }, update: data });
     await prisma.libraryBook.update({ where: { id: bookId }, data: { updatedAt: new Date() } });
     res.json({ page: pageJson(page) });

@@ -81,6 +81,33 @@ describe('Reader, verified identities and administration',()=>{
     expect((await (await call('/api/library/progress','GET',undefined,readerToken)).json()).progress[0].pageNumber).toBe(7);
     expect((await call('/api/library/progress','PUT',{bookId:book.id,pageNumber:8},readerToken)).status).toBe(404);
   });
+  it('saves ordered chapter navigation, rejects missing targets atomically, and restricts editing to admins',async()=>{
+    const token=generateToken(owner.id,owner.telegramId),url='/api/admin/books/'+book.id+'/contents';
+    const contents=[{title:'فصل نخست',pageNumber:7,level:0},{title:'تمرکز',pageNumber:7,level:1}];
+    expect((await call(url,'PUT',{contents},generateToken(reader.id,reader.telegramId))).status).toBe(403);
+    expect((await call(url,'PUT',{contents},token)).status).toBe(200);
+    expect((await (await call('/api/library/'+book.id)).json()).book.contents).toEqual(contents);
+    expect((await call(url,'PUT',{contents:[{title:'صفحهٔ ناموجود',pageNumber:8,level:0}]},token)).status).toBe(400);
+    expect((await (await call(url,'GET',undefined,token)).json()).contents.map((row:any)=>row.title)).toEqual(['فصل نخست','تمرکز']);
+    expect((await call(url,'PUT',{contents:[...contents].reverse()},token)).status).toBe(200);
+    expect((await (await call('/api/library/'+book.id)).json()).book.contents[0].title).toBe('تمرکز');
+    await call('/api/admin/books/'+book.id+'/pages/8','PUT',{heading:'فهرست',content:'فصل نخست ........ ۷\nبخش اول | ۷',keywords:''},token);
+    const suggestion=await (await call(url+'/suggest','POST',{from:8,to:8},token)).json();expect(suggestion.contents).toHaveLength(2);
+    // Suggestions do not silently replace the saved, manually ordered list.
+    expect((await (await call(url,'GET',undefined,token)).json()).contents[0].title).toBe('تمرکز');
+    await call('/api/admin/books/'+book.id+'/pages/8','DELETE',undefined,token);
+  });
+  it('persists audio timing and clears stale cues when text is edited without new timings',async()=>{
+    const token=generateToken(owner.id,owner.telegramId),url='/api/admin/books/'+book.id+'/pages/7';
+    const page=(await (await call(url,'GET',undefined,token)).json()).page;
+    const audioCues=[{time:0,offset:0},{time:2,offset:10}];
+    expect((await call(url,'PUT',{...page,audioCues},token)).status).toBe(200);
+    expect((await (await call('/api/library/'+book.id+'/pages/7')).json()).page.audioCues).toEqual(audioCues);
+    expect((await call(url,'PUT',{...page,audioCues:[{time:2,offset:10},{time:1,offset:0}]},token)).status).toBe(400);
+    const {audioCues:_,...withoutCues}=page;
+    expect((await call(url,'PUT',{...withoutCues,content:page.content+' یادداشت جدید.'},token)).status).toBe(200);
+    expect((await (await call('/api/library/'+book.id+'/pages/7')).json()).page.audioCues).toEqual([]);
+  });
   it('binds Google login to PKCE, state and a verified ID token, then rejects replay',async()=>{
     const start=await fetch(base+'/api/auth/google/start?next=/admin',{redirect:'manual'});
     const authorization=new URL(start.headers.get('location')!),state=authorization.searchParams.get('state')!,cookie=start.headers.get('set-cookie')!.split(';')[0];

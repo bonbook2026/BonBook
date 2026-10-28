@@ -13,11 +13,12 @@ export function bookJson(book: any) {
     coverLayout: book.coverLayout, coverFrontSide: book.coverFrontSide,
     coverSpineStart: book.coverSpineStart, coverSpineEnd: book.coverSpineEnd,
     pageCount: book._count?.pages ?? book.pages?.length ?? 0, updatedAt: book.updatedAt,
-    ...(book.pages ? { pages: book.pages.map((page: any) => ({ number: page.number, heading: page.heading })) } : {}) };
+    ...(book.pages ? { pages: book.pages.map((page: any) => ({ number: page.number, heading: page.heading })) } : {}),
+    ...(book.contents ? {contents:book.contents.map((entry:any)=>({title:entry.title,pageNumber:entry.pageNumber,level:entry.level}))}: {}) };
 }
 export function pageJson(page: any) {
   return { id: page.id, bookId: page.bookId, number: page.number, heading: page.heading,
-    content: page.content, keywords: page.keywords, audioAssetId: page.audioAssetId,
+    content: page.content, keywords: page.keywords, audioAssetId: page.audioAssetId,audioCues:JSON.parse(page.audioCues||'[]'),
     sourceUrl:page.sourceAssetId?`/api/media/${page.sourceAssetId}`:null,sourcePageNumber:page.sourcePageNumber||null,sourceMimeType:page.source?.mimeType||null,
     audioUrl: page.audioAssetId ? `/api/media/${page.audioAssetId}` : null, updatedAt: page.updatedAt };
 }
@@ -35,7 +36,7 @@ export async function listLibrary(req: Request, res: Response, next: NextFunctio
 }
 export async function getLibraryBook(req: Request, res: Response, next: NextFunction) {
   try {
-    const book = await prisma.libraryBook.findFirst({ where: { id: positiveId(req.params.id), status: 'PUBLISHED' }, include: { pages: { select: { number: true, heading: true }, orderBy: { number: 'asc' } } } });
+    const book = await prisma.libraryBook.findFirst({ where: { id: positiveId(req.params.id), status: 'PUBLISHED' }, include: { contents:{orderBy:{position:'asc'}},pages: { select: { number: true, heading: true }, orderBy: { number: 'asc' } } } });
     if (!book) throw new HttpError(404, 'کتاب در دسترس نیست.');
     res.json({ book: bookJson(book) });
   } catch (error) { next(error); }

@@ -189,9 +189,23 @@ model LibraryBook {
   pages           LibraryPage[]
   progress        ReadingProgress[]
   imports         BookImport[]
+  contents        BookContents[]
 
   @@index([status, categoryId])
   @@map("library_books")
+}
+
+model BookContents {
+  id         Int         @id @default(autoincrement())
+  bookId     Int         @map("book_id")
+  book       LibraryBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  title      String
+  pageNumber Int         @map("page_number")
+  level      Int         @default(0)
+  position   Int         @default(0)
+
+  @@index([bookId, position])
+  @@map("book_contents")
 }
 
 model LibraryPage {
@@ -203,6 +217,7 @@ model LibraryPage {
   keywords         String      @default("")
   searchText       String      @default("") @map("search_text")
   audioAssetId     String?     @map("audio_asset_id")
+  audioCues        String      @default("[]") @map("audio_cues")
   audio            MediaAsset? @relation("PageAudio", fields: [audioAssetId], references: [id], onDelete: SetNull)
   sourceAssetId    String?     @map("source_asset_id")
   source           MediaAsset? @relation("PageSource", fields: [sourceAssetId], references: [id], onDelete: SetNull)

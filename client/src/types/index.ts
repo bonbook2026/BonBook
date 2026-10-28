@@ -47,12 +47,16 @@ export interface LibraryBook {
   coverSpineStart?: number; coverSpineEnd?: number;
   status: 'DRAFT' | 'PUBLISHED' | 'HIDDEN' | 'ARCHIVED' | 'TRASH'; isSample: boolean; pageCount: number; updatedAt: string;
   pages?: { number: number; heading: string }[];
+  contents?:ContentsEntry[];
 }
+export interface ContentsEntry{title:string;pageNumber:number;level:number}
 export interface LibraryPage {
   id: number; bookId: number; number: number; heading: string; content: string; keywords: string;
   audioAssetId: string | null; audioUrl: string | null; updatedAt: string;
   sourceUrl?:string|null;sourcePageNumber?:number|null;sourceMimeType?:string|null;
+  audioCues?:AudioCue[];
 }
+export interface AudioCue{time:number;offset:number}
 export type PageSummary=Pick<LibraryPage,'id'|'number'|'heading'>;
 export interface BookCategory{id:number;name:string;parentId:number|null;path:string;bookCount:number}
 export interface BookImport{id:string;bookId:number;filename:string;format:string;mode:string;status:'QUEUED'|'PROCESSING'|'REVIEW'|'APPLIED'|'FAILED'|'CANCELED';totalPages:number;completedPages:number;warnings:string;error:string|null;createdAt:string}
