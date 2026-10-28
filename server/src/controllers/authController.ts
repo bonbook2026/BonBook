@@ -3,6 +3,8 @@ import { TelegramAuthService } from '../services/telegramAuthService';
 import { UserService } from '../services/userService';
 import { generateToken, generateLocalTelegramToken } from '../middleware/auth';
 import { isLocalTelegramRequest, LOCAL_TELEGRAM_ID } from '../services/localTelegramService';
+import { applyVerifiedAccess } from '../services/accessService';
+import { publicUser, setSessionCookie } from '../services/sessionService';
 
 const telegramAuth = new TelegramAuthService();
 const userService = new UserService();
@@ -51,24 +53,21 @@ export async function login(req: Request, res: Response, next: NextFunction) {
 
     const telegramUser = telegramAuth.validateInitData(initData);
 
-    const user = await userService.findOrCreate(
+    let user = await userService.findOrCreate(
       String(telegramUser.id),
       telegramUser.first_name,
       telegramUser.last_name
     );
+    await userService.saveTelegramUsername(user.id, telegramUser.username);
+    user = await applyVerifiedAccess(user.id, { telegramId: String(telegramUser.id), username: telegramUser.username });
 
     const token = generateToken(user.id, user.telegramId);
+    setSessionCookie(res, token);
     const profileStatus = userService.isProfileComplete(user);
 
     res.json({
       token,
-      user: {
-        id: user.id,
-        telegramId: user.telegramId,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-      },
+      user: publicUser(user),
       profileComplete: profileStatus.complete,
       missingFields: profileStatus.missing,
     });

@@ -15,7 +15,9 @@ bot credentials or service unit is used by BonBook.
 
 ## Prepare the private settings
 
-Only `TELEGRAM_BOT_TOKEN` is copied from the ignored `.env.example.local` file.
+Only the named BonBook identity settings (`TELEGRAM_BOT_TOKEN`, `GOOGLE_CLIENT_ID`,
+`GOOGLE_CLIENT_SECRET`, `OWNER_TELEGRAM_USERNAME`, `OWNER_GOOGLE_EMAILS`) are copied
+from the ignored `.env.example.local` file.
 Old example settings, GitHub credentials, USD prices and provider credentials are
 not imported. A dedicated JWT secret is generated and kept on subsequent runs.
 
@@ -53,7 +55,8 @@ python3 /srv/bonbook-preproduction/current/deploy/configure-free-domain.py bonbo
 The helper also removes only BonBook's former location include from the shared
 SignalVerse vhost, if present. No SignalVerse runtime restart is needed. The
 preproduction client uses
-relative assets and hash routing so its public path can move without rebuilding.
+root-relative assets and browser routing, including direct `/admin` access.
+Host it at the root of its own HTTPS hostname. The GitHub Pages demo keeps hash routing.
 
 ## Transfer to another server
 
@@ -64,14 +67,14 @@ bash /srv/bonbook-preproduction/current/deploy/backup-preproduction.sh
 ```
 
 This creates a mode-0600 transfer archive in `shared/backups/` containing a consistent
-SQLite backup, private environment, exact source archive and commit ID. Treat it
+SQLite backup, uploaded `media/`, private environment, exact source archive and commit ID. Treat it
 as a secret and transfer it only over SSH to the new host. Extract it in a private
 directory. Set `FRONTEND_URL` in its `runtime.env` to the new HTTPS URL; keep the
 database path and port, or adapt the unit/proxy together if those must change.
 On the new, empty BonBook host:
 
 ```bash
-bash install-preproduction.sh "$(cat release-id)" ./source.tar.gz ./runtime.env ./bonbook.db
+bash install-preproduction.sh "$(cat release-id)" ./source.tar.gz ./runtime.env ./bonbook.db ./media
 ```
 
 The free sslip.io hostname embeds the server IP: choose a hostname containing the
@@ -81,3 +84,24 @@ HTTPS route, check health and Telegram login, then update the bot's
 Mini App URL. The installer refuses to overwrite an existing database when restoring.
 Keep the old installation until the new one is verified; stop only BonBook there
 after cutover. Transfer archives are not published to GitHub or web directories.
+
+## Reader and administration
+
+`BOOK_MEDIA_DIR=/srv/bonbook-preproduction/shared/data/media` keeps uploaded covers
+and page audio with the database across releases. Backups snapshot SQLite before
+copying immutable media; uploaded files are never physically removed by page edits.
+The installer seeds original educational samples only when the library is empty.
+
+Google login requires a Web application OAuth client, origin matching `FRONTEND_URL`,
+and redirect URI `https://YOUR_HOST/api/auth/google/callback`. Only `openid email profile`
+are requested. Add the intended accounts as Google test users while the consent screen
+is in Testing. Update both the origin and redirect URI when moving to a new hostname.
+Owner emails and Telegram username are private server settings, never frontend flags.
+The first verified Telegram owner login pins its numeric ID in the database. Helper
+admins claim invitations on a fresh verified login; revocation takes effect immediately.
+
+`/library`, `/search` and `/read/BOOK/PAGE` show published content. Drafts and draft
+media require admin authentication. `/admin` edits books and pages; `/admin/access`
+is owner-only. Search ranks actual page text and editor keywords, and returns page
+references. Audio uses an uploaded narration when available, otherwise the browser's
+text-to-speech engine; Persian voice availability depends on the browser/device.

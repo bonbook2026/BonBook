@@ -65,6 +65,8 @@ function profileResponse(user: User) {
 
 // This adapter never fetches an API, authenticates Telegram, sends email, or charges money.
 export async function demoRequest<T>(path: string, options: RequestInit, token: string | null): Promise<T> {
+  if(path.startsWith('/library')){const {demoLibraryRequest}=await import('./demoLibraryApi');return demoLibraryRequest(path,options) as T;}
+  if(path==='/auth/logout')return {ok:true} as T;
   const state = readState();
   const method = options.method || 'GET';
   let result: unknown;

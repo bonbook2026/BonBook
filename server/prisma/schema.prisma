@@ -8,15 +8,19 @@ datasource db {
 }
 
 model User {
-  id         Int      @id @default(autoincrement())
-  telegramId String   @unique @map("telegram_id")
-  firstName  String?  @map("first_name")
-  lastName   String?  @map("last_name")
-  email      String?
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id               Int      @id @default(autoincrement())
+  telegramId       String   @unique @map("telegram_id")
+  firstName        String?  @map("first_name")
+  lastName         String?  @map("last_name")
+  email            String?
+  role             String   @default("READER")
+  telegramUsername String?  @map("telegram_username")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
-  orders Order[]
+  orders          Order[]
+  identities      AuthIdentity[]
+  readingProgress ReadingProgress[]
 
   @@map("users")
 }
@@ -98,4 +102,111 @@ model Delivery {
   order Order @relation(fields: [orderId], references: [id])
 
   @@map("deliveries")
+}
+
+model AuthIdentity {
+  id            Int     @id @default(autoincrement())
+  userId        Int     @map("user_id")
+  provider      String
+  subject       String
+  verifiedEmail String? @map("verified_email")
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, subject])
+  @@map("auth_identities")
+}
+
+model SiteSetting {
+  key   String @id
+  value String
+
+  @@map("site_settings")
+}
+
+model AdminGrant {
+  id            Int      @id @default(autoincrement())
+  kind          String
+  identifier    String
+  claimedUserId Int?     @map("claimed_user_id")
+  createdById   Int      @map("created_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([kind, identifier])
+  @@map("admin_grants")
+}
+
+model OAuthAttempt {
+  stateHash String    @id @map("state_hash")
+  verifier  String
+  nonce     String
+  nextPath  String    @map("next_path")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+
+  @@map("oauth_attempts")
+}
+
+model MediaAsset {
+  id          String        @id
+  filename    String
+  mimeType    String        @map("mime_type")
+  kind        String
+  size        Int
+  createdById Int           @map("created_by_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  covers      LibraryBook[] @relation("LibraryCover")
+  audioPages  LibraryPage[] @relation("PageAudio")
+
+  @@map("media_assets")
+}
+
+model LibraryBook {
+  id           Int               @id @default(autoincrement())
+  title        String
+  author       String            @default("")
+  description  String            @default("")
+  category     String            @default("عمومی")
+  language     String            @default("fa-IR")
+  coverTone    String            @default("sand") @map("cover_tone")
+  coverAssetId String?           @map("cover_asset_id")
+  cover        MediaAsset?       @relation("LibraryCover", fields: [coverAssetId], references: [id], onDelete: SetNull)
+  status       String            @default("DRAFT")
+  isSample     Boolean           @default(false) @map("is_sample")
+  createdById  Int?              @map("created_by_id")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+  pages        LibraryPage[]
+  progress     ReadingProgress[]
+
+  @@map("library_books")
+}
+
+model LibraryPage {
+  id           Int         @id @default(autoincrement())
+  bookId       Int         @map("book_id")
+  number       Int
+  heading      String      @default("")
+  content      String
+  keywords     String      @default("")
+  searchText   String      @default("") @map("search_text")
+  audioAssetId String?     @map("audio_asset_id")
+  audio        MediaAsset? @relation("PageAudio", fields: [audioAssetId], references: [id], onDelete: SetNull)
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  book         LibraryBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, number])
+  @@map("library_pages")
+}
+
+model ReadingProgress {
+  id         Int         @id @default(autoincrement())
+  userId     Int         @map("user_id")
+  bookId     Int         @map("book_id")
+  pageNumber Int         @map("page_number")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book       LibraryBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@map("reading_progress")
 }

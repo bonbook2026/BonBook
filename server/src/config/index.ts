@@ -14,6 +14,15 @@ export const config = {
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN || '',
   },
+  owners: {
+    telegramUsername: (process.env.OWNER_TELEGRAM_USERNAME || '').replace(/^@/, '').toLowerCase(),
+    googleEmails: (process.env.OWNER_GOOGLE_EMAILS || '').split(',').map((value) => value.trim().toLowerCase()).filter(Boolean),
+  },
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID || '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+  },
+  mediaDirectory: process.env.BOOK_MEDIA_DIR || path.resolve(__dirname, '../../storage/media'),
 
   boncard: {
     apiUrl: process.env.BONCARD_API_URL || '',

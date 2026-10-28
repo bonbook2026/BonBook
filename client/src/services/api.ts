@@ -1,7 +1,8 @@
-import { AuthResponse, BookInfo, Order } from '../types';
+import { AuthResponse, BookInfo, Order, User, LibraryBook, LibraryPage, SearchResult, AdminGrant } from '../types';
 import { IS_DEMO, IS_PREPRODUCTION } from '../config/demo';
 
-const BASE_URL = IS_PREPRODUCTION ? `${import.meta.env.BASE_URL}api` : '/api';
+const BASE_URL = '/api';
+export const mediaUrl = (url: string | null) => url && url.startsWith('/api/media/') ? url : null;
 const TOKEN_KEY = IS_DEMO ? 'bonbook_preview_token' : IS_PREPRODUCTION ? 'bonbook_preproduction_token' : 'bonbook_token';
 
 let authToken: string | null = null;
@@ -61,6 +62,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   auth: {
+    options: () => request<{google: boolean; telegramBotUrl: string}>('/auth/options'),
+    session: () => request<AuthResponse>('/auth/session'),
+    logout: () => request<{ok: boolean}>('/auth/logout', { method: 'POST' }),
     getLocalTelegramStatus: () => request<{ enabled: boolean }>('/auth/local-telegram'),
     localTelegramLogin: () =>
       request<AuthResponse>('/auth/local-telegram', { method: 'POST' }),
@@ -74,14 +78,14 @@ export const api = {
   users: {
     getProfile: () =>
       request<{
-        user: { id: number; telegramId: string; firstName: string | null; lastName: string | null; email: string | null };
+        user: User;
         profileComplete: boolean;
         missingFields: string[];
       }>('/users/profile'),
 
     updateProfile: (data: { firstName?: string; lastName?: string; email?: string }) =>
       request<{
-        user: { id: number; telegramId: string; firstName: string | null; lastName: string | null; email: string | null };
+        user: User;
         profileComplete: boolean;
         missingFields: string[];
       }>('/users/profile', {
@@ -114,5 +118,35 @@ export const api = {
         '/payments/initiate',
         { method: 'POST', body: JSON.stringify({ orderId }) }
       ),
+  },
+  library: {
+    list: () => request<{books: LibraryBook[]; categories: string[]}>('/library'),
+    book: (id: number) => request<{book: LibraryBook}>(`/library/${id}`),
+    page: (id: number, page: number) => request<{page: LibraryPage}>(`/library/${id}/pages/${page}`),
+    search: (q: string, bookId?: number) => request<{query: string; results: SearchResult[]}>(`/library/search?q=${encodeURIComponent(q)}${bookId ? '&bookId=' + bookId : ''}`),
+    progress: () => request<{progress: {book: LibraryBook; pageNumber: number; updatedAt: string}[]}>('/library/progress'),
+    saveProgress: (bookId: number, pageNumber: number) => request<{ok: boolean}>('/library/progress', {method:'PUT', body:JSON.stringify({bookId,pageNumber})}),
+  },
+  admin: {
+    books: () => request<{books: LibraryBook[]}>('/admin/books'),
+    createBook: (title: string) => request<{book: LibraryBook}>('/admin/books', {method:'POST',body:JSON.stringify({title})}),
+    book: (id: number) => request<{book: LibraryBook; pages: LibraryPage[]}>(`/admin/books/${id}`),
+    saveBook: (book: LibraryBook) => request<{book: LibraryBook}>(`/admin/books/${book.id}`, {method:'PUT',body:JSON.stringify(book)}),
+    archiveBook: (id: number) => request<{ok:boolean}>(`/admin/books/${id}`, {method:'DELETE'}),
+    savePage: (bookId: number, page: Pick<LibraryPage,'number'|'heading'|'content'|'keywords'|'audioAssetId'>) => request<{page:LibraryPage}>(`/admin/books/${bookId}/pages/${page.number}`, {method:'PUT',body:JSON.stringify(page)}),
+    deletePage: (bookId: number, page: number) => request<{ok:boolean}>(`/admin/books/${bookId}/pages/${page}`, {method:'DELETE'}),
+    access: () => request<{grants:AdminGrant[]}>('/admin/access'),
+    addAdmin: (identifier: string) => request<{grant:AdminGrant}>('/admin/access', {method:'POST',body:JSON.stringify({identifier})}),
+    removeAdmin: (id:number) => request<{ok:boolean}>(`/admin/access/${id}`, {method:'DELETE'}),
+    upload: async (kind: 'cover'|'audio', file: File) => {
+      const data = new FormData(); data.append('file',file);
+      const response = await fetch(`${BASE_URL}/admin/media/${kind}`, {method:'POST',headers:{Authorization:`Bearer ${getToken() || ''}`},body:data});
+      const result = await response.json(); if (!response.ok) throw new Error(result.error || 'بارگذاری انجام نشد.');
+      return result as {asset:{id:string;url:string}};
+    },
+    mediaBlob: async (id:string) => {
+      const response = await fetch(`${BASE_URL}/media/${id}`, {headers:{Authorization:`Bearer ${getToken() || ''}`}});
+      if (!response.ok) throw new Error('فایل در دسترس نیست.'); return response.blob();
+    },
   },
 };

@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { UserService } from '../services/userService';
+import { publicUser } from '../services/sessionService';
 
 const userService = new UserService();
 
@@ -15,13 +16,7 @@ export async function getProfile(req: AuthRequest, res: Response, next: NextFunc
     const profileStatus = userService.isProfileComplete(user);
 
     res.json({
-      user: {
-        id: user.id,
-        telegramId: user.telegramId,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-      },
+      user: publicUser(user),
       profileComplete: profileStatus.complete,
       missingFields: profileStatus.missing,
     });
@@ -38,13 +33,7 @@ export async function updateProfile(req: AuthRequest, res: Response, next: NextF
     const profileStatus = userService.isProfileComplete(user);
 
     res.json({
-      user: {
-        id: user.id,
-        telegramId: user.telegramId,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-      },
+      user: publicUser(user),
       profileComplete: profileStatus.complete,
       missingFields: profileStatus.missing,
     });

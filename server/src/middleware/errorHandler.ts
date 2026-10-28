@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
+import { HttpError } from '../lib/httpError';
 
 export function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction) {
+  if (err instanceof HttpError) { res.status(err.status).json({ error: err.message }); return; }
   console.error('Error:', err.message);
 
   if (err.message.includes('نامعتبر') || err.message.includes('Invalid')) {

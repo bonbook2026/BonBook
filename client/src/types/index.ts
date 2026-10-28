@@ -4,6 +4,8 @@ export interface User {
   firstName: string | null;
   lastName: string | null;
   email: string | null;
+  role?: 'OWNER' | 'ADMIN' | 'READER';
+  telegramUsername?: string | null;
 }
 
 export interface AuthResponse {
@@ -35,4 +37,21 @@ export interface BookInfo {
 export interface BookEntry {
   id: string;
   title: string;
+}
+
+export interface LibraryBook {
+  id: number; title: string; author: string; description: string; category: string;
+  language: string; coverTone: string; coverAssetId: string | null; coverUrl: string | null;
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'; isSample: boolean; pageCount: number; updatedAt: string;
+  pages?: { number: number; heading: string }[];
+}
+export interface LibraryPage {
+  id: number; bookId: number; number: number; heading: string; content: string; keywords: string;
+  audioAssetId: string | null; audioUrl: string | null; updatedAt: string;
+}
+export interface SearchResult extends LibraryPage {
+  bookTitle: string; author: string; language: string; excerpt: string; matchedTerms: string[];
+}
+export interface AdminGrant {
+  id: number; kind: string; identifier: string; claimedUserId: number | null; createdAt: string;
 }

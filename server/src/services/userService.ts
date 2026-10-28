@@ -23,6 +23,9 @@ export class UserService {
   async getById(id: number) {
     return prisma.user.findUnique({ where: { id } });
   }
+  async saveTelegramUsername(id: number, username?: string) {
+    return prisma.user.update({ where: { id }, data: { telegramUsername: typeof username === 'string' ? username.toLowerCase() : null } });
+  }
 
   async getByTelegramId(telegramId: string) {
     return prisma.user.findUnique({ where: { telegramId } });

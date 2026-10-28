@@ -1,5 +1,5 @@
 import prisma from '../lib/prisma';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { OrderStatus } from '../types';
 
 interface CreateOrderParams {
@@ -11,7 +11,7 @@ interface CreateOrderParams {
 
 export class OrderService {
   async createOrder(params: CreateOrderParams) {
-    const orderNumber = `BB-${Date.now().toString(36).toUpperCase()}-${uuidv4().slice(0, 4).toUpperCase()}`;
+    const orderNumber = `BB-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 4).toUpperCase()}`;
 
     return prisma.order.create({
       data: {

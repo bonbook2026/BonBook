@@ -1,38 +1,43 @@
 import { ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { Icon } from './Icon';
+import { useAuth } from '../hooks/useAuth';
 
 interface LayoutProps {
   children: ReactNode;
   title?: string;
   showBack?: boolean;
+  wide?: boolean;
 }
 
 const navigation = [
-  { icon: 'home' as const, label: 'خانه', path: '/dashboard' },
-  { icon: 'book' as const, label: 'خرید کتاب', path: '/store' },
-  { icon: 'orders' as const, label: 'سفارش‌ها', path: '/orders' },
+  { icon: 'book' as const, label: 'کتابخانه', path: '/library' },
+  { icon: 'search' as const, label: 'جست‌وجو', path: '/search' },
+  { icon: 'shop' as const, label: 'فروشگاه', path: '/shop' },
   { icon: 'user' as const, label: 'حساب کاربری', path: '/profile' },
 ];
 
-export function Layout({ children, title, showBack }: LayoutProps) {
+export function Layout({ children, title, showBack, wide }: LayoutProps) {
   const { pathname } = useLocation();
-  const isDashboard = pathname === '/dashboard';
-  const backPath = pathname === '/order-summary' ? '/store' : '/dashboard';
+  const { user } = useAuth();
+  const items = user?.role === 'OWNER' || user?.role === 'ADMIN' ? [...navigation, {icon:'shield' as const,label:'مدیریت',path:'/admin'}] : navigation;
+  const isDashboard = pathname === '/shop' || wide;
+  const backPath = pathname === '/order-summary' ? '/store' : '/library';
+  const inShop = ['/shop','/store','/orders','/order-summary','/success','/payment-failed'].includes(pathname);
 
   return (
     <div className="bookshop-shell">
       <header className="shop-header">
         <div className="shop-header-inner">
-          <Link to="/dashboard" className="shop-brand" aria-label="BonBook، خانهٔ کتاب‌فروشی">
+          <Link to="/library" className="shop-brand" aria-label="BonBook، کتابخانه">
             <span className="shop-brand-icon"><Icon name="book" /></span>
             <span>
               <span className="shop-wordmark" dir="ltr">BonBook<span className="text-brand-600">.</span></span>
-              <span className="block text-[11px] text-gray-500 mt-1">کتاب‌فروشی آنلاین</span>
+              <span className="block text-[11px] text-gray-500 mt-1">بخوان. بشنو. پیدا کن.</span>
             </span>
           </Link>
           <nav aria-label="منوی اصلی" className="desktop-nav">
-            {navigation.map((item) => (
+            {items.map((item) => (
               <NavLink key={item.path} to={item.path} className={({ isActive }) => 'desktop-nav-link' + (isActive ? ' is-active' : '')}>
                 {item.label}
               </NavLink>
@@ -43,6 +48,7 @@ export function Layout({ children, title, showBack }: LayoutProps) {
           </Link>
         </div>
       </header>
+      {inShop && <nav className="store-subnav" aria-label="منوی فروشگاه"><Link to="/shop">خانهٔ فروشگاه</Link><Link to="/store">خرید کتاب</Link><Link to="/orders">سفارش‌های من</Link></nav>}
 
       <main id="main-content" className={'shop-main' + (isDashboard ? '' : ' shop-main-narrow')}>
         {title && !isDashboard && (
@@ -64,8 +70,8 @@ export function Layout({ children, title, showBack }: LayoutProps) {
         </footer>
       </main>
 
-      <nav aria-label="ناوبری پایین صفحه" className="mobile-nav">
-        {navigation.map((item) => (
+      <nav aria-label="ناوبری پایین صفحه" className="mobile-nav" style={{gridTemplateColumns:`repeat(${items.length},1fr)`}}>
+        {items.map((item) => (
           <NavLink key={item.path} to={item.path} className={({ isActive }) => 'mobile-nav-link' + (isActive ? ' is-active' : '')}>
             <Icon name={item.icon} className="w-[22px] h-[22px]" />
             <span>{item.label}</span>

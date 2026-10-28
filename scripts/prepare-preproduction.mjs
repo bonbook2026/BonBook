@@ -28,6 +28,11 @@ const values = {
   TELEGRAM_BOT_TOKEN: token, JWT_SECRET: secret, ENABLE_LOCAL_TELEGRAM_LOGIN: 'false',
   DATABASE_URL: options.get('--database-url') || existing.DATABASE_URL || 'file:./bonbook.preproduction.db',
   FRONTEND_URL: new URL(publicUrl).href, BOOK_PRICE_TOMAN: '1500000', MAX_BOOKS_PER_ORDER: '50',
+  BOOK_MEDIA_DIR: existing.BOOK_MEDIA_DIR || '/srv/bonbook-preproduction/shared/data/media',
+  OWNER_TELEGRAM_USERNAME: source.OWNER_TELEGRAM_USERNAME || existing.OWNER_TELEGRAM_USERNAME || '',
+  OWNER_GOOGLE_EMAILS: source.OWNER_GOOGLE_EMAILS || existing.OWNER_GOOGLE_EMAILS || '',
+  GOOGLE_CLIENT_ID: source.GOOGLE_CLIENT_ID || existing.GOOGLE_CLIENT_ID || '',
+  GOOGLE_CLIENT_SECRET: source.GOOGLE_CLIENT_SECRET || existing.GOOGLE_CLIENT_SECRET || '',
 };
 fs.writeFileSync(target, Object.entries(values).map(([key, value]) => `${key}=${JSON.stringify(value)}`).join('\n') + '\n', { mode: 0o600 });
-console.log('Prepared the ignored server/.env.preproduction. Only the Telegram key was imported; secret values were not logged.');
+console.log('Prepared the ignored server/.env.preproduction using only named BonBook identity settings. Secret values were not logged.');

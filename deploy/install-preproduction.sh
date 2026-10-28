@@ -7,6 +7,7 @@ release_id=${1:?Supply a commit SHA}
 archive=${2:?Supply the source archive path}
 environment=${3:?Supply the private environment-file path}
 restore_database=${4:-}
+restore_media=${5:-}
 root=/srv/bonbook-preproduction
 [[ "$release_id" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid release id'; exit 1; }
 [[ $(id -u) == 0 ]] || { echo 'Run as root'; exit 1; }
@@ -22,6 +23,7 @@ if ! id bonbook >/dev/null 2>&1; then
 fi
 install -d -m 0750 -o root -g bonbook "$root" "$root/releases" "$root/shared" "$root/incoming"
 install -d -m 0700 -o bonbook -g bonbook "$root/shared/data"
+install -d -m 0700 -o bonbook -g bonbook "$root/shared/data/media"
 install -d -m 0700 -o bonbook -g bonbook "$root/shared/npm-cache"
 install -d -m 0700 -o root -g root "$root/shared/backups"
 if [[ -e "$root/current" ]]; then
@@ -32,6 +34,12 @@ fi
 if [[ -n "$restore_database" ]]; then
     test ! -e "$root/shared/data/bonbook.db" || { echo 'Refusing to overwrite an existing database'; exit 1; }
     install -m 0600 -o bonbook -g bonbook "$restore_database" "$root/shared/data/bonbook.db"
+fi
+if [[ -n "$restore_media" ]]; then
+    test -d "$restore_media"
+    test -z "$(find "$root/shared/data/media" -mindepth 1 -print -quit)" || { echo 'Refusing to overwrite existing media'; exit 1; }
+    cp -a "$restore_media/." "$root/shared/data/media/"
+    chown -R bonbook:bonbook "$root/shared/data/media"
 fi
 release="$root/releases/$release_id"
 test ! -e "$release" || { echo 'Release already exists; use another release id'; exit 1; }
@@ -49,6 +57,7 @@ runuser -u bonbook -- env NPM_CONFIG_CACHE="$root/shared/npm-cache" NODE_ENV=dev
     NODE_ENV=production npm run build:preproduction
     cd server
     DATABASE_URL=file:/srv/bonbook-preproduction/shared/data/bonbook.db ./node_modules/.bin/prisma migrate deploy
+    DATABASE_URL=file:/srv/bonbook-preproduction/shared/data/bonbook.db node dist/seedLibrary.js
 ' _ "$release"
 printf '%s\n' "$release_id" > "$release/.release-sha"
 chown -R root:bonbook "$release"

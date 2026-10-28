@@ -4,6 +4,9 @@ import userRoutes from './users';
 import bookRoutes from './books';
 import orderRoutes from './orders';
 import paymentRoutes from './payments';
+import libraryRoutes from './library';
+import adminRoutes from './admin';
+import { readMedia } from '../controllers/mediaController';
 
 const router = Router();
 
@@ -12,5 +15,8 @@ router.use('/users', userRoutes);
 router.use('/books', bookRoutes);
 router.use('/orders', orderRoutes);
 router.use('/payments', paymentRoutes);
+router.use('/library', libraryRoutes);
+router.use('/admin', adminRoutes);
+router.get('/media/:id', readMedia);
 
 export default router;

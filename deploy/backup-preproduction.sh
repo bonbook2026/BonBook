@@ -19,6 +19,10 @@ target.close()
 source.close()
 PY
 destination="$root/shared/backups/bonbook-transfer-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
-tar -czf "$destination" -C "$snapshot" runtime.env bonbook.db source.tar.gz release-id
+if [[ -d "$root/shared/data/media" ]]; then
+    tar -czf "$destination" -C "$snapshot" runtime.env bonbook.db source.tar.gz release-id -C "$root/shared/data" media
+else
+    tar -czf "$destination" -C "$snapshot" runtime.env bonbook.db source.tar.gz release-id
+fi
 chmod 0600 "$destination"
 echo "$destination"

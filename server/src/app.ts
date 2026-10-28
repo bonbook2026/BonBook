@@ -16,6 +16,8 @@ if (config.preproduction) app.set('trust proxy', 'loopback');
 app.use(helmet(config.preproduction ? {
   contentSecurityPolicy: { directives: {
     scriptSrc: ["'self'", 'https://telegram.org'],
+    imgSrc: ["'self'", 'data:', 'blob:'],
+    mediaSrc: ["'self'", 'blob:'],
     frameAncestors: ["'self'", 'https://web.telegram.org', 'https://*.telegram.org'],
   } },
   xFrameOptions: false,
@@ -41,6 +43,10 @@ if (config.preproduction) {
       if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-store');
     },
   }));
+  app.get(/^\/(?:admin(?:\/books\/\d+|\/access)?|library|search|read\/\d+\/\d+|login|auth\/complete|dashboard|shop|profile|store|order-summary|orders|success|payment-failed)\/?$/, (_req,res) => {
+    res.setHeader('Cache-Control','no-store');
+    res.sendFile(path.join(clientDirectory,'index.html'));
+  });
 }
 
 app.use(errorHandler);
