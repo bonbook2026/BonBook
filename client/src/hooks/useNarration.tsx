@@ -15,7 +15,7 @@ function useNarrationState(){
  const startTarget=(target:NarrationTarget,rate:number,bookPlayback:BookPlayback|null=null,ended?:()=>void,paused=false)=>{
   halt();const revision=generation.current;
   publish({target,status:paused?'paused':'playing',mode:bookPlayback?'book':'page',playlist:bookPlayback,error:null,rate,position:0,offset:-1,approximate:Boolean(target.audioUrl&&(!target.audioCues?.length||target.audioCueMode==='PARTIAL'))});
-  const fail=(error?:unknown)=>{if(generation.current===revision)publish({status:'paused',offset:-1,error:(error as {name?:string})?.name==='NotAllowedError'?'برای ادامهٔ صدا، دکمهٔ پخش را بزن.':'پخش این ویس انجام نشد؛ دوباره پخش کن یا ویس بعدی را انتخاب کن.'});};
+  const fail=(error?:unknown)=>{const name=(error as {name?:string})?.name;if(name==='AbortError'&&current.current.status==='paused')return;if(generation.current===revision)publish({status:'paused',offset:-1,error:name==='NotAllowedError'?'برای ادامهٔ صدا، دکمهٔ پخش را بزن.':'پخش این ویس انجام نشد؛ دوباره پخش کن یا ویس بعدی را انتخاب کن.'});};
   if(target.audioUrl){
    // Keep one media element across tracks so the user's playback permission and
    // speed survive automatic page changes, including on mobile browsers.
@@ -51,9 +51,9 @@ function useNarrationState(){
  const resume=()=>{
   bookPaused.current=false;
   if(queue.current?.loading){publish({status:'loading'});return;}
-  if(queue.current&&current.current.error){void queue.current.retry();return;}
+  if(queue.current&&current.current.error&&current.current.target?.number!==queue.current.pages[queue.current.index]){void queue.current.retry();return;}
   const revision=generation.current;
-  if(current.current.target?.audioUrl&&audio.current)void audio.current.play().then(()=>{if(generation.current===revision)publish({status:'playing',error:null});}).catch(()=>{if(generation.current===revision)publish({status:'paused',error:'ادامهٔ پخش انجام نشد؛ دوباره دکمهٔ پخش را بزن.'});});
+  if(current.current.target?.audioUrl&&audio.current){if(audio.current.error)audio.current.load();void audio.current.play().then(()=>{if(generation.current===revision&&!bookPaused.current)publish({status:'playing',error:null});}).catch(error=>{if(generation.current===revision&&!(error?.name==='AbortError'&&current.current.status==='paused'))publish({status:'paused',error:'ادامهٔ پخش انجام نشد؛ دوباره دکمهٔ پخش را بزن.'});});}
   else{window.speechSynthesis?.resume();publish({status:'playing',error:null});}
  };
  const seek=(percent:number)=>{const player=audio.current;if(!current.current.target?.audioUrl||!player||!Number.isFinite(player.duration))return;player.currentTime=Math.max(0,Math.min(100,percent))/100*player.duration;player.ontimeupdate?.call(player,new Event('timeupdate'));};
