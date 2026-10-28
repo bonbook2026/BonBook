@@ -195,6 +195,9 @@ against the existing book text; it does not replace that text with a transcript.
 Only complete, high-coverage matches are applied automatically. Partial or weak
 matches are retained for review, with possible alternative page numbers. Current
 text/audio hashes and existing manual cues are checked again at application time.
+Existing nonempty timing cues are preserved until an admin explicitly applies the
+new suggestion. The book-wide recognition list supports including timed pages and
+applying all confident suggestions together; stale snapshots are skipped.
 
 Model/runtime files live under `shared/speech-venv` and `shared/speech-models`;
 they can be rebuilt by the installer on a new host. Audio originals, batch state,

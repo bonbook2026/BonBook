@@ -6,7 +6,7 @@ import { adminBooks, adminBook, savePage, adminAccess, changeBookState } from '.
 import { categories } from '../controllers/categoryController';
 import {bookContents,suggestContents} from '../controllers/contentsController';
 import {audioOptions,audioBatches,getAudioBatch,uploadBatchAudio} from '../controllers/audioBatchController';
-import {pageAlignment,changeAlignment,alignBook} from '../controllers/speechController';
+import {pageAlignment,changeAlignment,alignBook,bookAlignments} from '../controllers/speechController';
 import {uploadDocument,importOptions,bookImports,getImport,importedPage,applyImport} from '../controllers/importController';
 import fs from 'fs';
 import path from 'path';
@@ -29,6 +29,8 @@ router.get('/books/:id/audio-options',audioOptions);
 router.get('/books/:id/audio-batches',audioBatches);
 router.post('/books/:id/audio-batches',audioBatches);
 router.post('/books/:id/align-audio',alignBook);
+router.get('/books/:id/alignments',bookAlignments);
+router.post('/books/:id/alignments/apply-ready',bookAlignments);
 router.get('/audio-batches/:batchId',getAudioBatch);
 router.delete('/audio-batches/:batchId',getAudioBatch);
 router.get('/books/:id/pages/:page/alignment',pageAlignment);

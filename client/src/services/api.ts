@@ -146,6 +146,8 @@ export const api = {
     applyAlignment:(id:string,replaceManual=false)=>request<{alignment:AudioAlignment}>(`/admin/alignments/${id}/apply`,{method:'POST',body:JSON.stringify({replaceManual})}),
     cancelAlignment:(id:string)=>request<{ok:boolean}>(`/admin/alignments/${id}`,{method:'DELETE'}),
     alignBook:(id:number,replaceExisting=false)=>request<{queued:number;skipped:number}>(`/admin/books/${id}/align-audio`,{method:'POST',body:JSON.stringify({replaceExisting})}),
+    bookAlignments:(id:number)=>request<{jobs:(AudioAlignment&{pageNumber:number})[]}>(`/admin/books/${id}/alignments`),
+    applyReadyAlignments:(id:number)=>request<{applied:number;skipped:number}>(`/admin/books/${id}/alignments/apply-ready`,{method:'POST'}),
     books: (filters:Record<string,string>={}) => request<{books: LibraryBook[];total:number;page:number;pageSize:number;counts:Record<string,number>}>('/admin/books?'+new URLSearchParams(filters)),
     createBook: (title: string) => request<{book: LibraryBook}>('/admin/books', {method:'POST',body:JSON.stringify({title})}),
     book: (id: number) => request<{book: LibraryBook; pages: PageSummary[]}>(`/admin/books/${id}`),

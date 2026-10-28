@@ -23,3 +23,11 @@ export async function alignBook(req:AuthRequest,res:Response,next:NextFunction){
  for(const page of pages){if(!page.content.trim()||(page.audioCues!=='[]'&&req.body.replaceExisting!==true)){skipped++;continue;}await prisma.$transaction(tx=>queueAlignment(tx,page,req.userId!));queued++;}
  res.status(202).json({queued,skipped});
 }catch(e){next(e);}}
+export async function bookAlignments(req:AuthRequest,res:Response,next:NextFunction){try{
+ const bookId=positiveId(req.params.id);if(!await prisma.libraryBook.findFirst({where:{id:bookId,status:{not:'TRASH'}}}))throw new HttpError(404,'کتاب در دسترس نیست.');
+ const jobs=await prisma.audioAlignment.findMany({where:{page:{bookId}},orderBy:{createdAt:'desc'},select:{id:true,status:true,progress:true,coverage:true,lineCoverage:true,warning:true,error:true,candidates:true,pageId:true,page:{select:{number:true}}},take:4000});
+ const seen=new Set<number>(),latest=jobs.filter(job=>{if(seen.has(job.pageId))return false;seen.add(job.pageId);return true;});
+ if(req.method==='GET'){res.json({jobs:latest.map(job=>({...job,page:undefined,pageNumber:job.page.number,candidates:JSON.parse(job.candidates)}))});return;}
+ let applied=0,skipped=0;for(const job of latest){if(job.status!=='READY'||job.coverage<.78||job.lineCoverage!==1)continue;try{await applyAlignment(job.id);applied++;}catch{skipped++;}}
+ res.json({applied,skipped});
+}catch(e){next(e);}}

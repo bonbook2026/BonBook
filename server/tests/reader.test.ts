@@ -131,6 +131,14 @@ describe('Reader, verified identities and administration',()=>{
     await prisma.audioAlignment.update({where:{id:stale.id},data:{status:'REVIEW',cues:JSON.stringify([{offset:0,time:1}])}});
     await call(`/api/admin/books/${target.id}/pages/1`,'PUT',{...pageData,content:pageData.content+' تغییر متن.',audioAssetId:page.audioAssetId},token);
     expect((await call(`/api/admin/alignments/${stale.id}/apply`,'POST',{},token)).status).toBe(409);
+    const manual=[{offset:0,time:0}],suggested=[{offset:0,time:1}];await prisma.libraryPage.update({where:{id:page.id},data:{audioCues:JSON.stringify(manual),audioCueMode:'MANUAL'}});
+    const current=await prisma.libraryPage.findUnique({where:{id:page.id}}),review=await queueAlignment(prisma,current,owner.id);
+    await prisma.audioAlignment.update({where:{id:review.id},data:{status:'READY',cues:JSON.stringify(suggested),coverage:1,lineCoverage:1}});
+    expect((await prisma.libraryPage.findUnique({where:{id:page.id}})).audioCues).toBe(JSON.stringify(manual));
+    expect((await call(`/api/admin/books/${target.id}/alignments/apply-ready`,'POST',{},readerToken)).status).toBe(403);
+    const ready=await (await call(`/api/admin/books/${target.id}/alignments`,'GET',undefined,token)).json();expect(ready.jobs.some((job:any)=>job.id===review.id&&job.status==='READY')).toBe(true);
+    const applied=await (await call(`/api/admin/books/${target.id}/alignments/apply-ready`,'POST',{},token)).json();expect(applied.applied).toBe(1);
+    expect((await prisma.libraryPage.findUnique({where:{id:page.id}})).audioCues).toBe(JSON.stringify(suggested));
   });
   it('keeps illustrated pages private until publication and permits image-only content',async()=>{
     const token=generateToken(owner.id,owner.telegramId),target=(await (await call('/api/admin/books','POST',{title:'تصویر آزمایشی'},token)).json()).book;
