@@ -18,8 +18,9 @@ import { PaymentFailed } from './pages/PaymentFailed';
 import { IS_DEMO, IS_PREPRODUCTION } from './config/demo';
 
 function Protected({children,admin=false}:{children:ReactNode;admin?:boolean}){
-  const {user,loading,logout}=useAuth(),location=useLocation();
+  const {user,loading,logout,error}=useAuth(),location=useLocation();
   if(loading)return <div className="reading-loading" role="status">در حال بارگذاری حساب…</div>;
+  if(!user&&error)return <div className="login-scene"><div className="login-card"><h1>دریافت حساب انجام نشد</h1><p role="alert">{error}</p><button className="reader-button" onClick={()=>window.location.reload()}>دوباره تلاش کن</button></div></div>;
   if(!user)return <Navigate to="/login" state={{next:location.pathname+location.search}} replace/>;
   if(admin&&user.role!=='OWNER'&&user.role!=='ADMIN')return <div className="login-scene"><div className="login-card"><h1>دسترسی مدیریت نداری</h1><p>با حسابی که مالک به‌عنوان ادمین ثبت کرده وارد شو.</p><button className="reader-button" onClick={logout}>خروج و تغییر حساب</button></div></div>;
   return <>{children}</>;

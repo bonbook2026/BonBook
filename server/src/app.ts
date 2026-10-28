@@ -25,13 +25,13 @@ app.use(helmet(config.preproduction ? {
 app.use(cors({ origin: new URL(config.frontendUrl).origin, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use(generalLimiter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', service: 'bonbook', ...(config.preproduction ? { environment: 'preproduction' } : {}) });
 });
 
-app.use('/api', routes);
+// Static assets and SPA documents must remain available when an API budget is exhausted.
+app.use('/api', generalLimiter, routes);
 
 if (config.preproduction) {
   const clientDirectory = path.resolve(__dirname, '../../client/dist-preproduction');

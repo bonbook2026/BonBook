@@ -105,3 +105,15 @@ media require admin authentication. `/admin` edits books and pages; `/admin/acce
 is owner-only. Search ranks actual page text and editor keywords, and returns page
 references. Audio uses an uploaded narration when available, otherwise the browser's
 text-to-speech engine; Persian voice availability depends on the browser/device.
+
+Full cover images stay in the original media asset. Set `coverLayout=SPREAD`, choose
+the physical left/right front face and place `coverSpineStart`/`coverSpineEnd` on
+the two spine edges (percent of image width). Both faces fit their entire crop
+without trimming text; the reader can flip the cover from the library. Single
+cover images continue to work. These settings travel with the database backup.
+
+Only API requests count toward general rate limits. Anonymous clients retain
+100 requests per 15 minutes; verified reader accounts have isolated 600-request
+budgets. Current OWNER/ADMIN roles, checked in the database, are exempt from the
+general API limit. Authentication and payment limits remain 20 and 10 respectively.
+HTML, bundled assets and the health endpoint remain available after API exhaustion.

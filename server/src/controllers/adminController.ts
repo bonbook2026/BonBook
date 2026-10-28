@@ -37,11 +37,21 @@ export async function adminBook(req: AuthRequest, res: Response, next: NextFunct
       res.json({ ok: true }); return;
     }
     const { title, author, description, category, coverTone, language, status, coverAssetId } = req.body;
+    const coverLayout = req.body.coverLayout ?? book.coverLayout;
+    const coverFrontSide = req.body.coverFrontSide ?? book.coverFrontSide;
+    const coverSpineStart = req.body.coverSpineStart ?? book.coverSpineStart;
+    const coverSpineEnd = req.body.coverSpineEnd ?? book.coverSpineEnd;
+    if (!['SINGLE','SPREAD'].includes(coverLayout) || !['LEFT','RIGHT'].includes(coverFrontSide) ||
+      ![coverSpineStart,coverSpineEnd].every(value => typeof value === 'number' && Number.isFinite(value)) ||
+      coverSpineStart < 20 || coverSpineEnd > 80 || coverSpineStart > coverSpineEnd || coverSpineEnd - coverSpineStart > 20) {
+      throw new HttpError(400, 'جهت جلد و مرزهای عطف معتبر نیست. هر طرف تصویر باید حداقل ۲۰ درصد عرض داشته باشد.');
+    }
     if (!['DRAFT', 'PUBLISHED', 'ARCHIVED'].includes(status) || !['sand', 'blue', 'moss', 'rose', 'ink'].includes(coverTone)) throw new HttpError(400, 'وضعیت یا رنگ جلد معتبر نیست.');
     if (status === 'PUBLISHED' && !book.pages.length) throw new HttpError(400, 'قبل از انتشار، حداقل یک صفحه به کتاب اضافه کنید.');
     const updated = await prisma.libraryBook.update({ where: { id }, data: {
       title: text(title, 200, true), author: text(author, 160), description: text(description, 3000), category: text(category, 80, true),
       coverTone, language: text(language, 20, true), status, coverAssetId: await asset(coverAssetId, 'cover'),
+      coverLayout, coverFrontSide, coverSpineStart, coverSpineEnd,
     }, include: { _count: { select: { pages: true } } } });
     res.json({ book: bookJson(updated) });
   } catch (error) { next(error); }

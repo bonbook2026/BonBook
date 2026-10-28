@@ -161,22 +161,26 @@ model MediaAsset {
 }
 
 model LibraryBook {
-  id           Int               @id @default(autoincrement())
-  title        String
-  author       String            @default("")
-  description  String            @default("")
-  category     String            @default("عمومی")
-  language     String            @default("fa-IR")
-  coverTone    String            @default("sand") @map("cover_tone")
-  coverAssetId String?           @map("cover_asset_id")
-  cover        MediaAsset?       @relation("LibraryCover", fields: [coverAssetId], references: [id], onDelete: SetNull)
-  status       String            @default("DRAFT")
-  isSample     Boolean           @default(false) @map("is_sample")
-  createdById  Int?              @map("created_by_id")
-  createdAt    DateTime          @default(now()) @map("created_at")
-  updatedAt    DateTime          @updatedAt @map("updated_at")
-  pages        LibraryPage[]
-  progress     ReadingProgress[]
+  id              Int               @id @default(autoincrement())
+  title           String
+  author          String            @default("")
+  description     String            @default("")
+  category        String            @default("عمومی")
+  language        String            @default("fa-IR")
+  coverTone       String            @default("sand") @map("cover_tone")
+  coverAssetId    String?           @map("cover_asset_id")
+  coverLayout     String            @default("SINGLE") @map("cover_layout")
+  coverFrontSide  String            @default("LEFT") @map("cover_front_side")
+  coverSpineStart Float             @default(48) @map("cover_spine_start")
+  coverSpineEnd   Float             @default(52) @map("cover_spine_end")
+  cover           MediaAsset?       @relation("LibraryCover", fields: [coverAssetId], references: [id], onDelete: SetNull)
+  status          String            @default("DRAFT")
+  isSample        Boolean           @default(false) @map("is_sample")
+  createdById     Int?              @map("created_by_id")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  pages           LibraryPage[]
+  progress        ReadingProgress[]
 
   @@map("library_books")
 }

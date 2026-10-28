@@ -95,6 +95,15 @@ describe('Reader, verified identities and administration',()=>{
     const replay=await fetch(base+'/api/auth/google/callback?state='+state+'&code=fixture-code',{headers:{Cookie:cookie},redirect:'manual'});expect(replay.headers.get('location')).toContain('google_failed');expect(exchange).toHaveBeenCalledTimes(1);
     vi.restoreAllMocks();
   });
+  it('persists full-cover geometry and rejects overlapping or invalid cover regions',async()=>{
+    const token=generateToken(owner.id,owner.telegramId);
+    const saved=await call('/api/admin/books/'+book.id,'PUT',{...book,status:'PUBLISHED',coverLayout:'SPREAD',coverFrontSide:'LEFT',coverSpineStart:47.5,coverSpineEnd:52.5},token);
+    expect(saved.status).toBe(200);
+    expect((await (await call('/api/library/'+book.id)).json()).book).toMatchObject({coverLayout:'SPREAD',coverFrontSide:'LEFT',coverSpineStart:47.5,coverSpineEnd:52.5});
+    for(const data of [{coverSpineStart:70,coverSpineEnd:30},{coverSpineStart:5,coverSpineEnd:52},{coverFrontSide:'INVALID'},{coverLayout:'HTML'}]){
+      expect((await call('/api/admin/books/'+book.id,'PUT',{...book,...data},token)).status).toBe(400);
+    }
+  });
   it('rejects wrong Google nonce and cross-site cookie mutations',async()=>{
     const start=await fetch(base+'/api/auth/google/start',{redirect:'manual'}),authorization=new URL(start.headers.get('location')!),state=authorization.searchParams.get('state')!,cookie=start.headers.get('set-cookie')!.split(';')[0];
     vi.spyOn(OAuth2Client.prototype,'getToken').mockResolvedValue({tokens:{id_token:'fixture-id-token'}} as any);

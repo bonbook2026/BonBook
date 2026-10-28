@@ -9,6 +9,8 @@ export function bookJson(book: any) {
     category: book.category, language: book.language, coverTone: book.coverTone,
     coverUrl: book.coverAssetId ? `/api/media/${book.coverAssetId}` : null,
     coverAssetId: book.coverAssetId, status: book.status, isSample: book.isSample,
+    coverLayout: book.coverLayout, coverFrontSide: book.coverFrontSide,
+    coverSpineStart: book.coverSpineStart, coverSpineEnd: book.coverSpineEnd,
     pageCount: book._count?.pages ?? book.pages?.length ?? 0, updatedAt: book.updatedAt,
     ...(book.pages ? { pages: book.pages.map((page: any) => ({ number: page.number, heading: page.heading })) } : {}) };
 }

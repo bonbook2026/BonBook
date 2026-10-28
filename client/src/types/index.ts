@@ -42,6 +42,8 @@ export interface BookEntry {
 export interface LibraryBook {
   id: number; title: string; author: string; description: string; category: string;
   language: string; coverTone: string; coverAssetId: string | null; coverUrl: string | null;
+  coverLayout?: 'SINGLE' | 'SPREAD'; coverFrontSide?: 'LEFT' | 'RIGHT';
+  coverSpineStart?: number; coverSpineEnd?: number;
   status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'; isSample: boolean; pageCount: number; updatedAt: string;
   pages?: { number: number; heading: string }[];
 }

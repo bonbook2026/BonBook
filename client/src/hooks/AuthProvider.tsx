@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { api, setToken, clearToken } from '../services/api';
+import { api, setToken, clearToken, ApiError } from '../services/api';
 import { AuthResponse, User } from '../types';
+import { IS_DEMO } from '../config/demo';
 interface AuthState { user:User|null; loading:boolean; error:string|null; profileComplete:boolean; missingFields:string[] }
 function useAuthState(){
   const revision=useRef(0);
@@ -17,7 +18,7 @@ function useAuthState(){
   const completeGoogle=useCallback(()=>{clearToken();return authenticate(api.auth.session);},[authenticate]);
   const refreshProfile=useCallback(async()=>{apply(await api.users.getProfile());},[apply]);
   const logout=useCallback(()=>{revision.current++;void api.auth.logout().catch(()=>{});clearToken();setState({user:null,loading:false,error:null,profileComplete:false,missingFields:[]});},[]);
-  useEffect(()=>{let active=true;const current=revision.current;api.users.getProfile().then(result=>{if(active&&current===revision.current)apply(result);}).catch(()=>{if(active&&current===revision.current){clearToken();setState(s=>({...s,loading:false}));}});return()=>{active=false;};},[apply]);
+  useEffect(()=>{let active=true;const current=revision.current;api.users.getProfile().then(result=>{if(active&&current===revision.current)apply(result);}).catch(error=>{if(active&&current===revision.current){if(IS_DEMO||(error instanceof ApiError&&error.status===401)){clearToken();setState(s=>({...s,loading:false,error:null}));}else setState(s=>({...s,loading:false,error:error instanceof Error?error.message:'دریافت حساب انجام نشد؛ دوباره تلاش کنید.'}));}});return()=>{active=false;};},[apply]);
   return {...state,login,loginLocally,logout,completeGoogle,refreshProfile};
 }
 const Context=createContext<ReturnType<typeof useAuthState>|null>(null);

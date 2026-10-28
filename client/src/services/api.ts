@@ -3,6 +3,9 @@ import { IS_DEMO, IS_PREPRODUCTION } from '../config/demo';
 
 const BASE_URL = '/api';
 export const mediaUrl = (url: string | null) => url && url.startsWith('/api/media/') ? url : null;
+export class ApiError extends Error {
+  constructor(message:string,public status:number,public retryAfterSeconds=0){super(message);this.name='ApiError';}
+}
 const TOKEN_KEY = IS_DEMO ? 'bonbook_preview_token' : IS_PREPRODUCTION ? 'bonbook_preproduction_token' : 'bonbook_token';
 
 let authToken: string | null = null;
@@ -54,7 +57,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'خطای ناشناخته' }));
-    throw new Error(error.error || `HTTP ${response.status}`);
+    throw new ApiError(error.error || `HTTP ${response.status}`,response.status,Number(response.headers.get('Retry-After'))||0);
   }
 
   return response.json();
