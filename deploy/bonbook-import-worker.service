@@ -1,0 +1,28 @@
+[Unit]
+Description=BonBook isolated document import worker
+After=network.target bonbook-preproduction.service
+
+[Service]
+Type=simple
+User=bonbook
+Group=bonbook
+WorkingDirectory=/srv/bonbook-preproduction/current/server
+EnvironmentFile=/srv/bonbook-preproduction/shared/runtime.env
+Environment=BONBOOK_ENV_FILE=/srv/bonbook-preproduction/shared/runtime.env
+Environment=OMP_THREAD_LIMIT=1
+ExecStart=/usr/bin/node --max-old-space-size=192 dist/importWorker.js
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/srv/bonbook-preproduction/shared/data
+MemoryMax=512M
+CPUQuota=50%
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target

@@ -43,7 +43,7 @@ if (config.preproduction) {
       if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-store');
     },
   }));
-  app.get(/^\/(?:admin(?:\/books\/\d+|\/access)?|library|search|read\/\d+\/\d+|login|auth\/complete|dashboard|shop|profile|store|order-summary|orders|success|payment-failed)\/?$/, (_req,res) => {
+  app.get(/^\/(?:admin(?:\/books\/\d+|\/access|\/categories)?|library|search|read\/\d+\/\d+|login|auth\/complete|dashboard|shop|profile|store|order-summary|orders|success|payment-failed)\/?$/, (_req,res) => {
     res.setHeader('Cache-Control','no-store');
     res.sendFile(path.join(clientDirectory,'index.html'));
   });

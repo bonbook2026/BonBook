@@ -156,6 +156,8 @@ model MediaAsset {
   createdAt   DateTime      @default(now()) @map("created_at")
   covers      LibraryBook[] @relation("LibraryCover")
   audioPages  LibraryPage[] @relation("PageAudio")
+  sourcePages LibraryPage[] @relation("PageSource")
+  imports     BookImport[]
 
   @@map("media_assets")
 }
@@ -166,6 +168,10 @@ model LibraryBook {
   author          String            @default("")
   description     String            @default("")
   category        String            @default("عمومی")
+  categoryId      Int?              @map("category_id")
+  categoryNode    BookCategory?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tags            String            @default("")
+  catalogText     String            @default("") @map("catalog_text")
   language        String            @default("fa-IR")
   coverTone       String            @default("sand") @map("cover_tone")
   coverAssetId    String?           @map("cover_asset_id")
@@ -175,31 +181,88 @@ model LibraryBook {
   coverSpineEnd   Float             @default(52) @map("cover_spine_end")
   cover           MediaAsset?       @relation("LibraryCover", fields: [coverAssetId], references: [id], onDelete: SetNull)
   status          String            @default("DRAFT")
+  deletedAt       DateTime?         @map("deleted_at")
   isSample        Boolean           @default(false) @map("is_sample")
   createdById     Int?              @map("created_by_id")
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt @map("updated_at")
   pages           LibraryPage[]
   progress        ReadingProgress[]
+  imports         BookImport[]
 
+  @@index([status, categoryId])
   @@map("library_books")
 }
 
 model LibraryPage {
-  id           Int         @id @default(autoincrement())
-  bookId       Int         @map("book_id")
-  number       Int
-  heading      String      @default("")
-  content      String
-  keywords     String      @default("")
-  searchText   String      @default("") @map("search_text")
-  audioAssetId String?     @map("audio_asset_id")
-  audio        MediaAsset? @relation("PageAudio", fields: [audioAssetId], references: [id], onDelete: SetNull)
-  updatedAt    DateTime    @updatedAt @map("updated_at")
-  book         LibraryBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  id               Int         @id @default(autoincrement())
+  bookId           Int         @map("book_id")
+  number           Int
+  heading          String      @default("")
+  content          String
+  keywords         String      @default("")
+  searchText       String      @default("") @map("search_text")
+  audioAssetId     String?     @map("audio_asset_id")
+  audio            MediaAsset? @relation("PageAudio", fields: [audioAssetId], references: [id], onDelete: SetNull)
+  sourceAssetId    String?     @map("source_asset_id")
+  source           MediaAsset? @relation("PageSource", fields: [sourceAssetId], references: [id], onDelete: SetNull)
+  sourcePageNumber Int?        @map("source_page_number")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  book             LibraryBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
   @@unique([bookId, number])
   @@map("library_pages")
+}
+
+model BookCategory {
+  id       Int            @id @default(autoincrement())
+  name     String
+  key      String         @unique
+  parentId Int?           @map("parent_id")
+  parent   BookCategory?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children BookCategory[] @relation("CategoryTree")
+  books    LibraryBook[]
+
+  @@map("book_categories")
+}
+
+model BookImport {
+  id             String         @id
+  bookId         Int            @map("book_id")
+  book           LibraryBook    @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  sourceAssetId  String         @map("source_asset_id")
+  source         MediaAsset     @relation(fields: [sourceAssetId], references: [id])
+  filename       String
+  sources        String         @default("[]")
+  format         String
+  mode           String         @default("auto")
+  status         String         @default("QUEUED")
+  totalPages     Int            @default(0) @map("total_pages")
+  completedPages Int            @default(0) @map("completed_pages")
+  attempts       Int            @default(0)
+  warnings       String         @default("")
+  error          String?
+  createdById    Int            @map("created_by_id")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  pages          ImportedPage[]
+
+  @@index([status, createdAt])
+  @@map("book_imports")
+}
+
+model ImportedPage {
+  id               Int        @id @default(autoincrement())
+  importId         String     @map("import_id")
+  import           BookImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  number           Int
+  heading          String     @default("")
+  content          String
+  sourceAssetId    String?    @map("source_asset_id")
+  sourcePageNumber Int?       @map("source_page_number")
+
+  @@unique([importId, number])
+  @@map("imported_pages")
 }
 
 model ReadingProgress {

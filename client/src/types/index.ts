@@ -42,15 +42,21 @@ export interface BookEntry {
 export interface LibraryBook {
   id: number; title: string; author: string; description: string; category: string;
   language: string; coverTone: string; coverAssetId: string | null; coverUrl: string | null;
+  categoryId?:number|null;tags?:string;deletedAt?:string|null;
   coverLayout?: 'SINGLE' | 'SPREAD'; coverFrontSide?: 'LEFT' | 'RIGHT';
   coverSpineStart?: number; coverSpineEnd?: number;
-  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'; isSample: boolean; pageCount: number; updatedAt: string;
+  status: 'DRAFT' | 'PUBLISHED' | 'HIDDEN' | 'ARCHIVED' | 'TRASH'; isSample: boolean; pageCount: number; updatedAt: string;
   pages?: { number: number; heading: string }[];
 }
 export interface LibraryPage {
   id: number; bookId: number; number: number; heading: string; content: string; keywords: string;
   audioAssetId: string | null; audioUrl: string | null; updatedAt: string;
+  sourceUrl?:string|null;sourcePageNumber?:number|null;sourceMimeType?:string|null;
 }
+export type PageSummary=Pick<LibraryPage,'id'|'number'|'heading'>;
+export interface BookCategory{id:number;name:string;parentId:number|null;path:string;bookCount:number}
+export interface BookImport{id:string;bookId:number;filename:string;format:string;mode:string;status:'QUEUED'|'PROCESSING'|'REVIEW'|'APPLIED'|'FAILED'|'CANCELED';totalPages:number;completedPages:number;warnings:string;error:string|null;createdAt:string}
+export interface ImportedPage{number:number;heading:string;content:string;sourceUrl:string|null;sourcePageNumber:number|null}
 export interface SearchResult extends LibraryPage {
   bookTitle: string; author: string; language: string; excerpt: string; matchedTerms: string[];
 }

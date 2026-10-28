@@ -11,7 +11,7 @@ restore_media=${5:-}
 root=/srv/bonbook-preproduction
 [[ "$release_id" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid release id'; exit 1; }
 [[ $(id -u) == 0 ]] || { echo 'Run as root'; exit 1; }
-node -e 'if (Number(process.versions.node.split(".")[0]) < 20) process.exit(1)'
+node -e 'const [major,minor]=process.versions.node.split(".").map(Number); if (major<22 || (major===22 && minor<13)) process.exit(1)'
 test -f "$archive"
 test -f "$environment"
 if ss -H -ltn sport = :3135 | grep -q . && ! systemctl is-active --quiet bonbook-preproduction.service; then
@@ -46,6 +46,9 @@ test ! -e "$release" || { echo 'Release already exists; use another release id';
 install -d -m 0750 -o bonbook -g bonbook "$release"
 tar -xzf "$archive" -C "$release" --no-same-owner
 chown -R bonbook:bonbook "$release"
+if ! command -v pdftoppm >/dev/null || ! command -v tesseract >/dev/null || [[ ! -s "$root/shared/data/ocr-models/fas.traineddata" ]]; then
+    bash "$release/deploy/prepare-document-import.sh"
+fi
 install -m 0600 -o root -g root "$archive" "$root/incoming/$release_id.tar.gz"
 runuser -u bonbook -- env NPM_CONFIG_CACHE="$root/shared/npm-cache" NODE_ENV=development DATABASE_URL=file:./bonbook-build.db NODE_OPTIONS=--max-old-space-size=512 nice -n 10 bash -c '
     set -euo pipefail
@@ -67,6 +70,7 @@ if [[ -f "$root/shared/runtime.env" ]]; then
 fi
 install -m 0640 -o root -g bonbook "$environment" "$root/shared/runtime.env"
 install -m 0644 "$release/deploy/bonbook-preproduction.service" /etc/systemd/system/bonbook-preproduction.service
+install -m 0644 "$release/deploy/bonbook-import-worker.service" /etc/systemd/system/bonbook-import-worker.service
 previous=$(readlink -f "$root/current" || true)
 ln -s "$release" "$root/current.next"
 mv -Tf "$root/current.next" "$root/current"
@@ -93,3 +97,5 @@ if [[ "$healthy" != true ]]; then
     exit 1
 fi
 echo "BonBook release $release_id is healthy on loopback port 3135."
+systemctl enable bonbook-import-worker.service
+systemctl restart bonbook-import-worker.service

@@ -32,9 +32,10 @@ export async function readMedia(req: Request, res: Response, next: NextFunction)
     const media = await prisma.mediaAsset.findUnique({ where: { id }, include: {
       covers: { where: { status: 'PUBLISHED' }, select: { id: true }, take: 1 },
       audioPages: { where: { book: { status: 'PUBLISHED' } }, select: { id: true }, take: 1 },
+      sourcePages:{where:{book:{status:'PUBLISHED'}},select:{id:true},take:1},
     } });
     if (!media) throw new HttpError(404, 'فایل پیدا نشد.');
-    const published = media.covers.length || media.audioPages.length;
+    const published = media.covers.length || media.audioPages.length || media.sourcePages.length;
     if (!published) {
       const bearer = req.get('authorization')?.replace(/^Bearer /, '') || cookieValue(req, SESSION_COOKIE);
       let permitted = false;
@@ -48,6 +49,7 @@ export async function readMedia(req: Request, res: Response, next: NextFunction)
     res.setHeader('Content-Type', media.mimeType);
     res.setHeader('Cache-Control', published ? 'public, max-age=300' : 'private, no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    if(media.kind==='document'&&!media.mimeType.startsWith('image/')&&media.mimeType!=='application/pdf')res.attachment(media.filename);
     res.sendFile(path.resolve(config.mediaDirectory, media.filename));
   } catch (error) { next(error); }
 }

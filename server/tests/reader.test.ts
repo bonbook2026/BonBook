@@ -113,4 +113,40 @@ describe('Reader, verified identities and administration',()=>{
     const denied=await fetch(base+'/api/admin/books',{method:'POST',headers:{Cookie:'bonbook_session='+generateToken(owner.id,owner.telegramId),Origin:'https://attacker.invalid','Content-Type':'application/json'},body:JSON.stringify({title:'forged'})});expect(denied.status).toBe(403);
     vi.restoreAllMocks();
   });
+  it('stages a whole document, previews it, and applies its pages without overwriting existing text',async()=>{
+    const token=generateToken(owner.id,owner.telegramId),form=new FormData();
+    form.append('mode','text');form.append('files',new Blob([Array.from({length:40},()=> 'یادگیری و مطالعه با تمرکز. '.repeat(10)).join('\n\n')],{type:'text/plain'}),'sample.txt');
+    const upload=await fetch(base+'/api/admin/media/import/'+book.id,{method:'POST',headers:{Authorization:'Bearer '+token},body:form});expect(upload.status).toBe(202);
+    const {import:job}=await upload.json();expect(job.status).toBe('QUEUED');
+    expect((await call('/api/admin/imports/'+job.id,'GET',undefined,generateToken(reader.id,reader.telegramId))).status).toBe(403);
+    const stored=await prisma.bookImport.findUnique({where:{id:job.id}}),source=JSON.parse(stored.sources)[0];
+    const {extractDocument}=await import('../src/services/documentExtraction');
+    await extractDocument(source,config.mediaDirectory,'text',async totalPages=>{await prisma.bookImport.update({where:{id:job.id},data:{totalPages}});},async page=>{await prisma.importedPage.create({data:{...page,importId:job.id}});},async()=>false);
+    await prisma.bookImport.update({where:{id:job.id},data:{status:'REVIEW'}});
+    const preview=await call('/api/admin/imports/'+job.id+'/pages/1','GET',undefined,token);expect(preview.status).toBe(200);expect((await preview.json()).page.content).toContain('یادگیری');
+    expect((await call('/api/admin/imports/'+job.id+'/apply','POST',{startPage:7},token)).status).toBe(409);
+    const applied=await call('/api/admin/imports/'+job.id+'/apply','POST',{startPage:10},token);expect(applied.status).toBe(200);expect((await applied.json()).added).toBeGreaterThan(2);
+    expect((await (await call('/api/library/'+book.id+'/pages/7')).json()).page.content).toContain('تلفن');
+    expect((await (await call('/api/library/'+book.id+'/pages/10')).json()).page.sourceUrl).toBe('/api/media/'+source.id);
+    expect((await (await call('/api/admin/imports/'+job.id+'/apply','POST',{startPage:10},token)).json()).added).toBe(0);
+  });
+  it('organizes nested categories and supports reversible hide, archive and trash',async()=>{
+    const token=generateToken(owner.id,owner.telegramId);
+    const parent=(await (await call('/api/admin/categories','POST',{name:'موضوع اصلی'},token)).json()).category;
+    const category=(await (await call('/api/admin/categories','POST',{name:'زیرموضوع',parentId:parent.id},token)).json()).category;
+    expect((await call('/api/admin/categories/'+parent.id,'PUT',{name:'موضوع اصلی',parentId:category.id},token)).status).toBe(400);
+    const current=(await (await call('/api/admin/books/'+book.id,'GET',undefined,token)).json()).book;
+    expect((await call('/api/admin/books/'+book.id,'PUT',{...current,categoryId:category.id,tags:'یادگیری، نمونه'},token)).status).toBe(200);
+    const found=await (await call('/api/admin/books?q='+encodeURIComponent('یادگیری')+'&categoryId='+category.id,'GET',undefined,token)).json();expect(found.books.some((item:any)=>item.id===book.id)).toBe(true);
+    const parentFound=await (await call('/api/admin/books?categoryId='+parent.id,'GET',undefined,token)).json();expect(parentFound.books.some((item:any)=>item.id===book.id)).toBe(true);
+    expect((await call('/api/admin/categories/'+category.id,'DELETE',undefined,token)).status).toBe(409);
+    const before=await prisma.libraryPage.count({where:{bookId:book.id}});
+    for(const action of ['hide','archive','trash']){expect((await call('/api/admin/books/'+book.id+'/state','POST',{action},token)).status).toBe(200);expect((await call('/api/library/'+book.id)).status).toBe(404);}
+    expect(await prisma.libraryPage.count({where:{bookId:book.id}})).toBe(before);
+    expect((await call('/api/admin/books/'+book.id+'/pages/99','PUT',{heading:'x',content:'text',keywords:''},token)).status).toBe(404);
+    expect((await call('/api/admin/books?status=TRASH','GET',undefined,token)).status).toBe(200);
+    const restored=await (await call('/api/admin/books/'+book.id+'/state','POST',{action:'restore'},token)).json();expect(restored.book.status).toBe('HIDDEN');expect(restored.book.deletedAt).toBeNull();
+    expect((await call('/api/admin/books/'+book.id+'/state','POST',{action:'publish'},token)).status).toBe(200);
+    expect((await call('/api/library/'+book.id)).status).toBe(200);
+  });
 });

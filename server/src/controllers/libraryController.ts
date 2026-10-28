@@ -7,6 +7,7 @@ import { rankPages, queryTerms } from '../services/searchService';
 export function bookJson(book: any) {
   return { id: book.id, title: book.title, author: book.author, description: book.description,
     category: book.category, language: book.language, coverTone: book.coverTone,
+    categoryId:book.categoryId,tags:book.tags||'',deletedAt:book.deletedAt,
     coverUrl: book.coverAssetId ? `/api/media/${book.coverAssetId}` : null,
     coverAssetId: book.coverAssetId, status: book.status, isSample: book.isSample,
     coverLayout: book.coverLayout, coverFrontSide: book.coverFrontSide,
@@ -17,6 +18,7 @@ export function bookJson(book: any) {
 export function pageJson(page: any) {
   return { id: page.id, bookId: page.bookId, number: page.number, heading: page.heading,
     content: page.content, keywords: page.keywords, audioAssetId: page.audioAssetId,
+    sourceUrl:page.sourceAssetId?`/api/media/${page.sourceAssetId}`:null,sourcePageNumber:page.sourcePageNumber||null,sourceMimeType:page.source?.mimeType||null,
     audioUrl: page.audioAssetId ? `/api/media/${page.audioAssetId}` : null, updatedAt: page.updatedAt };
 }
 export const positiveId = (value: unknown) => {
@@ -40,7 +42,7 @@ export async function getLibraryBook(req: Request, res: Response, next: NextFunc
 }
 export async function getLibraryPage(req: Request, res: Response, next: NextFunction) {
   try {
-    const page = await prisma.libraryPage.findFirst({ where: { bookId: positiveId(req.params.id), number: positiveId(req.params.page), book: { status: 'PUBLISHED' } } });
+    const page = await prisma.libraryPage.findFirst({ where: { bookId: positiveId(req.params.id), number: positiveId(req.params.page), book: { status: 'PUBLISHED' } },include:{source:{select:{mimeType:true}}} });
     if (!page) throw new HttpError(404, 'صفحه در دسترس نیست.');
     res.json({ page: pageJson(page) });
   } catch (error) { next(error); }

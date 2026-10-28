@@ -1,4 +1,4 @@
-import { AuthResponse, BookInfo, Order, User, LibraryBook, LibraryPage, SearchResult, AdminGrant } from '../types';
+import { AuthResponse, BookInfo, Order, User, LibraryBook, LibraryPage, SearchResult, AdminGrant,PageSummary,BookCategory,BookImport,ImportedPage } from '../types';
 import { IS_DEMO, IS_PREPRODUCTION } from '../config/demo';
 
 const BASE_URL = '/api';
@@ -131,11 +131,27 @@ export const api = {
     saveProgress: (bookId: number, pageNumber: number) => request<{ok: boolean}>('/library/progress', {method:'PUT', body:JSON.stringify({bookId,pageNumber})}),
   },
   admin: {
-    books: () => request<{books: LibraryBook[]}>('/admin/books'),
+    books: (filters:Record<string,string>={}) => request<{books: LibraryBook[];total:number;page:number;pageSize:number;counts:Record<string,number>}>('/admin/books?'+new URLSearchParams(filters)),
     createBook: (title: string) => request<{book: LibraryBook}>('/admin/books', {method:'POST',body:JSON.stringify({title})}),
-    book: (id: number) => request<{book: LibraryBook; pages: LibraryPage[]}>(`/admin/books/${id}`),
+    book: (id: number) => request<{book: LibraryBook; pages: PageSummary[]}>(`/admin/books/${id}`),
+    page: (id:number,page:number)=>request<{page:LibraryPage}>(`/admin/books/${id}/pages/${page}`),
     saveBook: (book: LibraryBook) => request<{book: LibraryBook}>(`/admin/books/${book.id}`, {method:'PUT',body:JSON.stringify(book)}),
-    archiveBook: (id: number) => request<{ok:boolean}>(`/admin/books/${id}`, {method:'DELETE'}),
+    state:(id:number,action:string)=>request<{book:LibraryBook}>(`/admin/books/${id}/state`,{method:'POST',body:JSON.stringify({action})}),
+    categories:()=>request<{categories:BookCategory[]}>('/admin/categories'),
+    saveCategory:(name:string,parentId:number|null,id?:number)=>request<{category:BookCategory}>(`/admin/categories${id?'/'+id:''}`,{method:id?'PUT':'POST',body:JSON.stringify({name,parentId})}),
+    deleteCategory:(id:number)=>request<{ok:boolean}>(`/admin/categories/${id}`,{method:'DELETE'}),
+    importOptions:()=>request<{ocr:boolean;maxBytes:number;formats:string[]}>('/admin/imports/options'),
+    imports:(id:number)=>request<{imports:BookImport[]}>(`/admin/books/${id}/imports`),
+    import:(id:string)=>request<{import:BookImport}>(`/admin/imports/${id}`),
+    importPage:(id:string,page:number)=>request<{page:ImportedPage}>(`/admin/imports/${id}/pages/${page}`),
+    editImportPage:(id:string,page:ImportedPage)=>request<{page:ImportedPage}>(`/admin/imports/${id}/pages/${page.number}`,{method:'PUT',body:JSON.stringify({heading:page.heading,content:page.content})}),
+    cancelImport:(id:string)=>request<{ok:boolean}>(`/admin/imports/${id}`,{method:'DELETE'}),
+    applyImport:(id:string,startPage:number)=>request<{bookId:number;added:number}>(`/admin/imports/${id}/apply`,{method:'POST',body:JSON.stringify({startPage})}),
+    uploadDocument:async(bookId:number,files:File[],mode:string)=>{
+      const body=new FormData();body.append('mode',mode);files.forEach(file=>body.append('files',file));
+      const response=await fetch(`${BASE_URL}/admin/media/import/${bookId}`,{method:'POST',headers:{Authorization:`Bearer ${getToken()||''}`},body});
+      const result=await response.json().catch(()=>({error:'بارگذاری کامل نشد. مجموع فایل‌ها باید حداکثر ۳۰ مگابایت باشد.'}));if(!response.ok)throw new ApiError(result.error,response.status);return result as {import:BookImport};
+    },
     savePage: (bookId: number, page: Pick<LibraryPage,'number'|'heading'|'content'|'keywords'|'audioAssetId'>) => request<{page:LibraryPage}>(`/admin/books/${bookId}/pages/${page.number}`, {method:'PUT',body:JSON.stringify(page)}),
     deletePage: (bookId: number, page: number) => request<{ok:boolean}>(`/admin/books/${bookId}/pages/${page}`, {method:'DELETE'}),
     access: () => request<{grants:AdminGrant[]}>('/admin/access'),

@@ -7,7 +7,7 @@ import { Library } from './pages/Library';
 import { LibrarySearch } from './pages/LibrarySearch';
 import { Reader } from './pages/Reader';
 import { Login, GoogleComplete } from './pages/Login';
-import { Admin, AdminBook, AdminAccess } from './pages/Admin';
+import { Admin, AdminBook, AdminAccess, AdminCategories } from './pages/Admin';
 import { StoreFront } from './pages/StoreFront';
 import { Profile } from './pages/Profile';
 import { BookStore } from './pages/BookStore';
@@ -47,6 +47,7 @@ function AppContent(){
     <Route path="/admin" element={<Protected admin><Admin/></Protected>}/>
     <Route path="/admin/books/:id" element={<Protected admin><AdminBook/></Protected>}/>
     <Route path="/admin/access" element={<Protected admin><AdminAccess/></Protected>}/>
+    <Route path="/admin/categories" element={<Protected admin><AdminCategories/></Protected>}/>
     <Route path="*" element={<Navigate to="/library" replace/>}/>
   </Routes></>;
 }

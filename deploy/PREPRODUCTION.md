@@ -34,7 +34,7 @@ The bot's Mini App/menu button must point to the public HTTPS URL.
 ## Install or update
 
 Create a source archive of a reviewed commit using `git archive`. On a host with
-Node 20+, npm, Python 3, systemd and an HTTPS proxy, transfer the source archive,
+Node 22.13+, npm, Python 3, systemd and an HTTPS proxy, transfer the source archive,
 private environment file and this installer over SSH, then run as root:
 
 ```bash
@@ -117,3 +117,39 @@ Only API requests count toward general rate limits. Anonymous clients retain
 budgets. Current OWNER/ADMIN roles, checked in the database, are exempt from the
 general API limit. Authentication and payment limits remain 20 and 10 respectively.
 HTML, bundled assets and the health endpoint remain available after API exhaustion.
+
+## Import books and scanned pages
+
+The admin book editor accepts PDF, DOCX, EPUB, ODT, UTF-8/UTF-16 or Windows-1256
+TXT/MD, and JPG/PNG/WebP/TIFF/BMP scans. One upload holds one document or up to
+100 images, with a combined limit of 30 MiB. Image order can be changed before
+upload. PDF page numbers are preserved; flowing document formats are divided
+into reading pages and the preview labels that pagination difference.
+
+`bonbook-import-worker.service` runs as the BonBook user with a separate 512 MiB
+memory limit, 50% CPU quota, private temporary files and no Internet address
+families. Only one job runs at a time. A restart resumes the last stored page;
+repeated crashes stop after three attempts. The web service remains independent.
+PDFs with scanned pages or a corrupt text layer can use Persian/English Tesseract
+OCR. The installer prepares official Poppler/Tesseract packages and an official
+Persian recognition model when missing. Model files live in `shared/data/ocr-models`
+and can be downloaded again on a new host. Set `BONBOOK_TESSDATA_DIR`,
+`BONBOOK_TESSERACT` or `BONBOOK_PDFTOPPM` for a custom local runtime if needed.
+
+Extraction is staged for review. Admins can inspect/edit the extracted text, then
+append the pages at an unused starting number. Existing text is never replaced.
+Original documents and scans are immutable media assets included in transfer
+backups; each imported reading page retains its source reference. Draft, hidden,
+archived and trashed books, including their source files, require admin access.
+OCR can make recognition errors, so review before publication.
+
+Book deletion moves content to a recoverable trash state. Restore returns it as
+hidden. Categories support parent/child groups; the admin list filters descendants
+of a selected parent, searches titles/authors/tags, and paginates large collections.
+
+For an authorized server-side example import, run `server/dist/queueBook.js` as
+the BonBook user with `BONBOOK_ENV_FILE` pointing at its private runtime file.
+Pass a private JSON file containing `file`, `filename`, `title`, `author`,
+`category`, optional `parentCategory`, `tags` and optional `coverSha256`.
+It creates a draft and stages an OCR job using an existing verified owner;
+it never creates or exports authentication tokens.
