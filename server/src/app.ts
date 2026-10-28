@@ -11,6 +11,7 @@ import { validatePreproductionConfig } from './config/preproduction';
 
 const app = express();
 validatePreproductionConfig();
+if (config.preproduction) app.set('trust proxy', 'loopback');
 
 app.use(helmet(config.preproduction ? {
   contentSecurityPolicy: { directives: {
