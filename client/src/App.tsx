@@ -4,6 +4,10 @@ import { useTelegram } from './hooks/useTelegram';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { NarrationProvider } from './hooks/useNarration';
 import { ThemeProvider } from './hooks/useTheme';
+import {SiteFeaturesProvider} from './hooks/useSiteFeatures';
+import {SectionGate,SiteHome} from './components/SectionGate';
+import {AdminSections} from './pages/AdminSections';
+import {AdminLibraryHero} from './pages/AdminLibraryHero';
 import { Library } from './pages/Library';
 import { LibrarySearch } from './pages/LibrarySearch';
 import { Reader } from './pages/Reader';
@@ -31,25 +35,27 @@ function AppContent(){
   useEffect(()=>{if(!IS_DEMO&&initData&&!auth.loading&&!attempted.current){attempted.current=true;void auth.login(initData).catch(()=>{});}},[initData,auth.loading,auth.login]);
   return <>{(IS_PREPRODUCTION||IS_DEMO)&&<div className="environment-banner"><span>{IS_DEMO?'نسخهٔ نمایشی · اطلاعات آزمایش در همین مرورگر':'پیش‌تولید بون‌بوک · پرداخت غیرفعال'}</span>{auth.user&&<button onClick={auth.logout}>خروج از حساب</button>}</div>}
   <Routes>
-    <Route path="/" element={<Navigate to="/library" replace/>}/>
-    <Route path="/dashboard" element={<Navigate to="/library" replace/>}/>
-    <Route path="/library" element={<Library/>}/>
-    <Route path="/search" element={<LibrarySearch/>}/>
-    <Route path="/read/:bookId/:page" element={<Reader/>}/>
+    <Route path="/" element={<SiteHome/>}/>
+    <Route path="/dashboard" element={<SiteHome/>}/>
+    <Route path="/library" element={<SectionGate section="library"><Library/></SectionGate>}/>
+    <Route path="/search" element={<SectionGate section="search"><LibrarySearch/></SectionGate>}/>
+    <Route path="/read/:bookId/:page" element={<SectionGate section="library"><Reader/></SectionGate>}/>
     <Route path="/login" element={<Login/>}/>
     <Route path="/auth/complete" element={<GoogleComplete/>}/>
-    <Route path="/shop" element={<StoreFront/>}/>
-    <Route path="/profile" element={<Protected><Profile/></Protected>}/>
-    <Route path="/store" element={<Protected><BookStore/></Protected>}/>
-    <Route path="/order-summary" element={<Protected><OrderSummary/></Protected>}/>
-    <Route path="/orders" element={<Protected><Orders/></Protected>}/>
-    <Route path="/success" element={<Protected><Success/></Protected>}/>
-    <Route path="/payment-failed" element={<Protected><PaymentFailed/></Protected>}/>
+    <Route path="/shop" element={<SectionGate section="store"><StoreFront/></SectionGate>}/>
+    <Route path="/profile" element={<SectionGate section="profile"><Protected><Profile/></Protected></SectionGate>}/>
+    <Route path="/store" element={<SectionGate section="store"><Protected><BookStore/></Protected></SectionGate>}/>
+    <Route path="/order-summary" element={<SectionGate section="store"><Protected><OrderSummary/></Protected></SectionGate>}/>
+    <Route path="/orders" element={<SectionGate section="store"><Protected><Orders/></Protected></SectionGate>}/>
+    <Route path="/success" element={<SectionGate section="store"><Protected><Success/></Protected></SectionGate>}/>
+    <Route path="/payment-failed" element={<SectionGate section="store"><Protected><PaymentFailed/></Protected></SectionGate>}/>
     <Route path="/admin" element={<Protected admin><Admin/></Protected>}/>
     <Route path="/admin/books/:id" element={<Protected admin><AdminBook/></Protected>}/>
+    <Route path="/admin/sections" element={<Protected admin><AdminSections/></Protected>}/>
+    <Route path="/admin/library-hero" element={<Protected admin><AdminLibraryHero/></Protected>}/>
     <Route path="/admin/access" element={<Protected admin><AdminAccess/></Protected>}/>
     <Route path="/admin/categories" element={<Protected admin><AdminCategories/></Protected>}/>
-    <Route path="*" element={<Navigate to="/library" replace/>}/>
+    <Route path="*" element={<SiteHome/>}/>
   </Routes></>;
 }
-export default function App(){const Router=IS_DEMO?HashRouter:BrowserRouter;return <ThemeProvider><Router><AuthProvider><NarrationProvider><AppContent/></NarrationProvider></AuthProvider></Router></ThemeProvider>;}
+export default function App(){const Router=IS_DEMO?HashRouter:BrowserRouter;return <ThemeProvider><Router><AuthProvider><SiteFeaturesProvider><NarrationProvider><AppContent/></NarrationProvider></SiteFeaturesProvider></AuthProvider></Router></ThemeProvider>;}

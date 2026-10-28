@@ -1,5 +1,6 @@
 import { AuthResponse, BookInfo, Order, User, LibraryBook, LibraryPage, SearchResult, AdminGrant,PageSummary,BookCategory,BookImport,ImportedPage,ContentsEntry,AudioBatch,AudioAlignment } from '../types';
 import { IS_DEMO, IS_PREPRODUCTION } from '../config/demo';
+import {SiteFeatures,SiteSection,LibraryHeroSettings} from '../types/siteSettings';
 
 const BASE_URL = '/api';
 export const mediaUrl = (url: string | null) => url && url.startsWith('/api/media/') ? url : null;
@@ -57,6 +58,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'خطای ناشناخته' }));
+    if(error.code==='SECTION_DISABLED')window.dispatchEvent(new Event('bonbook:sections-changed'));
     throw new ApiError(error.error || `HTTP ${response.status}`,response.status,Number(response.headers.get('Retry-After'))||0);
   }
 
@@ -64,6 +66,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  site:{sections:()=>request<{features:SiteFeatures}>('/site/sections'),hero:()=>request<{hero:LibraryHeroSettings}>('/site/library-hero')},
   auth: {
     options: () => request<{google: boolean; telegramBotUrl: string}>('/auth/options'),
     session: () => request<AuthResponse>('/auth/session'),
@@ -131,6 +134,10 @@ export const api = {
     saveProgress: (bookId: number, pageNumber: number) => request<{ok: boolean}>('/library/progress', {method:'PUT', body:JSON.stringify({bookId,pageNumber})}),
   },
   admin: {
+    sections:()=>request<{features:SiteFeatures}>('/admin/sections'),
+    setSection:(section:SiteSection,enabled:boolean)=>request<{features:SiteFeatures}>(`/admin/sections/${section}`,{method:'PUT',body:JSON.stringify({enabled})}),
+    hero:()=>request<{hero:LibraryHeroSettings}>('/admin/library-hero'),
+    saveHero:(hero:LibraryHeroSettings)=>request<{hero:LibraryHeroSettings}>('/admin/library-hero',{method:'PUT',body:JSON.stringify(hero)}),
     audioOptions:(id:number)=>request<{pages:{number:number;heading:string;audioAssetId:string|null}[];speech:boolean;maxFileBytes:number;maxFiles:number}>(`/admin/books/${id}/audio-options`),
     audioBatches:(id:number)=>request<{batches:AudioBatch[]}>(`/admin/books/${id}/audio-batches`),
     createAudioBatch:(id:number,files:{filename:string;pageNumber:number;size:number}[],replaceExisting:boolean,autoAlign:boolean)=>request<{batch:AudioBatch}>(`/admin/books/${id}/audio-batches`,{method:'POST',body:JSON.stringify({files,replaceExisting,autoAlign})}),

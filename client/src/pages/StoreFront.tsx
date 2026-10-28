@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Icon } from '../components/Icon';
+import {useSiteFeatures} from '../hooks/useSiteFeatures';
 
 const steps = [
   { number: '۰۱', title: 'کتاب‌هایت را انتخاب کن', text: 'نام کتاب‌های مورد نظرت را در فهرست خرید بنویس.' },
@@ -9,6 +10,7 @@ const steps = [
 ];
 
 export function StoreFront() {
+  const {canAccess}=useSiteFeatures();
   return (
     <Layout title="BonBook">
       <section className="bookshop-hero" aria-labelledby="hero-heading">
@@ -43,14 +45,14 @@ export function StoreFront() {
             </div>
             <Icon name="arrow" className="w-5 h-5 text-gray-400" />
           </Link>
-          <Link to="/profile" className="shop-action-card">
+          {canAccess('profile')&&<Link to="/profile" className="shop-action-card">
             <span className="shop-action-icon shop-action-icon-sage"><Icon name="user" className="w-7 h-7" /></span>
             <div className="flex-1 min-w-0">
               <h3>حساب کاربری</h3>
               <p>نام، اطلاعات شخصی و ایمیل دریافت</p>
             </div>
             <Icon name="arrow" className="w-5 h-5 text-gray-400" />
-          </Link>
+          </Link>}
         </div>
       </section>
 

@@ -5,8 +5,10 @@ import { PurchaseSteps } from '../components/PurchaseSteps';
 import { api } from '../services/api';
 import { IS_DEMO, IS_PREPRODUCTION } from '../config/demo';
 import { formatToman } from '../utils/money';
+import {useSiteFeatures} from '../hooks/useSiteFeatures';
 
 export function OrderSummary() {
+  const {canAccess}=useSiteFeatures();
   const location = useLocation();
   const navigate = useNavigate();
   const books: { title: string }[] = location.state?.books || [];
@@ -52,7 +54,8 @@ export function OrderSummary() {
     } catch (err) {
       const errData = err instanceof Error ? err.message : 'خطا در ایجاد سفارش';
       if (errData.includes('پروفایل ناقص') || errData.includes('redirectTo')) {
-        navigate('/profile');
+        if(canAccess('profile'))navigate('/profile');
+        else{setError('برای خرید، اطلاعات حساب باید کامل باشد؛ بخش حساب کاربری فعلاً غیرفعال است.');setCreating(false);}
         return;
       }
       setError(errData);

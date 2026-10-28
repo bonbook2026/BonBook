@@ -16,9 +16,9 @@ function useAuthState(){
   const login=useCallback((data:string)=>authenticate(()=>api.auth.login(data)),[authenticate]);
   const loginLocally=useCallback(()=>authenticate(api.auth.localTelegramLogin),[authenticate]);
   const completeGoogle=useCallback(()=>{clearToken();return authenticate(api.auth.session);},[authenticate]);
-  const refreshProfile=useCallback(async()=>{apply(await api.users.getProfile());},[apply]);
+  const refreshProfile=useCallback(async()=>{apply(await (IS_DEMO?api.users.getProfile():api.auth.session()));},[apply]);
   const logout=useCallback(()=>{revision.current++;void api.auth.logout().catch(()=>{});clearToken();setState({user:null,loading:false,error:null,profileComplete:false,missingFields:[]});},[]);
-  useEffect(()=>{let active=true;const current=revision.current;api.users.getProfile().then(result=>{if(active&&current===revision.current)apply(result);}).catch(error=>{if(active&&current===revision.current){if(IS_DEMO||(error instanceof ApiError&&error.status===401)){clearToken();setState(s=>({...s,loading:false,error:null}));}else setState(s=>({...s,loading:false,error:error instanceof Error?error.message:'دریافت حساب انجام نشد؛ دوباره تلاش کنید.'}));}});return()=>{active=false;};},[apply]);
+  useEffect(()=>{let active=true;const current=revision.current;(IS_DEMO?api.users.getProfile():api.auth.session()).then(result=>{if(active&&current===revision.current)apply(result);}).catch(error=>{if(active&&current===revision.current){if(IS_DEMO||(error instanceof ApiError&&error.status===401)){clearToken();setState(s=>({...s,loading:false,error:null}));}else setState(s=>({...s,loading:false,error:error instanceof Error?error.message:'دریافت حساب انجام نشد؛ دوباره تلاش کنید.'}));}});return()=>{active=false;};},[apply]);
   return {...state,login,loginLocally,logout,completeGoogle,refreshProfile};
 }
 const Context=createContext<ReturnType<typeof useAuthState>|null>(null);

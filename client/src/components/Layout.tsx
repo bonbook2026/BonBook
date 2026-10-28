@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import { Icon } from './Icon';
 import { useAuth } from '../hooks/useAuth';
 import { ThemeToggle } from './ThemeToggle';
+import {useSiteFeatures} from '../hooks/useSiteFeatures';
 
 interface LayoutProps {
   children: ReactNode;
@@ -14,25 +15,26 @@ interface LayoutProps {
 }
 
 const navigation = [
-  { icon: 'book' as const, label: 'کتابخانه', path: '/library' },
-  { icon: 'search' as const, label: 'جست‌وجو', path: '/search' },
-  { icon: 'shop' as const, label: 'فروشگاه', path: '/shop' },
-  { icon: 'user' as const, label: 'حساب کاربری', path: '/profile' },
+  { icon: 'book' as const, section:'library' as const,label: 'کتابخانه', path: '/library' },
+  { icon: 'search' as const, section:'search' as const,label: 'جست‌وجو', path: '/search' },
+  { icon: 'shop' as const, section:'store' as const,label: 'فروشگاه', path: '/shop' },
+  { icon: 'user' as const, section:'profile' as const,label: 'حساب کاربری', path: '/profile' },
 ];
 
 export function Layout({ children, title, showBack, wide, className='', footerText='یک کتاب، یک شروع تازه.' }: LayoutProps) {
   const { pathname } = useLocation();
-  const { user } = useAuth();
-  const items = user?.role === 'OWNER' || user?.role === 'ADMIN' ? [...navigation, {icon:'shield' as const,label:'مدیریت',path:'/admin'}] : navigation;
+  const { user,logout } = useAuth();
+  const {canAccess,home}=useSiteFeatures(),available=navigation.filter(item=>canAccess(item.section));
+  const items = user?.role === 'OWNER' || user?.role === 'ADMIN' ? [...available, {icon:'shield' as const,label:'مدیریت',path:'/admin'}] : available;
   const isDashboard = pathname === '/shop' || wide;
-  const backPath = pathname === '/order-summary' ? '/store' : '/library';
+  const backPath = pathname === '/order-summary' ? '/store' : home||'/';
   const inShop = ['/shop','/store','/orders','/order-summary','/success','/payment-failed'].includes(pathname);
 
   return (
     <div className={'bookshop-shell '+className}>
       <header className="shop-header">
         <div className="shop-header-inner">
-          <Link to="/library" className="shop-brand" aria-label="BonBook، کتابخانه">
+          <Link to={home||'/'} className="shop-brand" aria-label="BonBook، صفحهٔ اصلی">
             <span className="shop-brand-icon"><Icon name="book" /></span>
             <span>
               <span className="shop-wordmark" dir="ltr">BonBook<span className="text-brand-600">.</span></span>
@@ -46,12 +48,12 @@ export function Layout({ children, title, showBack, wide, className='', footerTe
               </NavLink>
             ))}
           </nav>
-          <div className="site-header-actions"><ThemeToggle/><Link to="/profile" className="mobile-account" aria-label="حساب کاربری">
+          <div className="site-header-actions"><ThemeToggle/>{canAccess('profile')&&<Link to="/profile" className="mobile-account" aria-label="حساب کاربری">
             <Icon name="user" className="w-5 h-5" />
-          </Link></div>
+          </Link>}{user&&!canAccess('profile')&&<button className="site-header-logout" onClick={logout}>خروج از حساب</button>}</div>
         </div>
       </header>
-      {inShop && <nav className="store-subnav" aria-label="منوی فروشگاه"><Link to="/shop">خانهٔ فروشگاه</Link><Link to="/store">خرید کتاب</Link><Link to="/orders">سفارش‌های من</Link></nav>}
+      {inShop && canAccess('store') && <nav className="store-subnav" aria-label="منوی فروشگاه"><Link to="/shop">خانهٔ فروشگاه</Link><Link to="/store">خرید کتاب</Link><Link to="/orders">سفارش‌های من</Link></nav>}
 
       <main id="main-content" className={'shop-main' + (isDashboard ? '' : ' shop-main-narrow')}>
         {title && !isDashboard && (
@@ -73,14 +75,14 @@ export function Layout({ children, title, showBack, wide, className='', footerTe
         </footer>
       </main>
 
-      <nav aria-label="ناوبری پایین صفحه" className="mobile-nav" style={{gridTemplateColumns:`repeat(${items.length},1fr)`}}>
+      {items.length>0&&<nav aria-label="ناوبری پایین صفحه" className="mobile-nav" style={{gridTemplateColumns:`repeat(${items.length},1fr)`}}>
         {items.map((item) => (
           <NavLink key={item.path} to={item.path} className={({ isActive }) => 'mobile-nav-link' + (isActive ? ' is-active' : '')}>
             <Icon name={item.icon} className="w-[22px] h-[22px]" />
             <span>{item.label}</span>
           </NavLink>
         ))}
-      </nav>
+      </nav>}
     </div>
   );
 }

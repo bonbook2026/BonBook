@@ -8,11 +8,11 @@ import { ThemeToggle } from '../components/ThemeToggle';
 import { IS_DEMO } from '../config/demo';
 export function Login(){
   const auth=useAuth(),{initData}=useTelegram(),location=useLocation(),navigate=useNavigate();
-  const next=(location.state as {next?:string}|null)?.next||'/library';
+  const next=(location.state as {next?:string}|null)?.next||'/';
   const [options,setOptions]=useState({google:false,local:IS_DEMO});
   useEffect(()=>{if(!IS_DEMO)void Promise.all([api.auth.options(),api.auth.getLocalTelegramStatus()]).then(([o,l])=>setOptions({google:o.google,local:import.meta.env.DEV&&l.enabled})).catch(()=>{});},[]);
   useEffect(()=>{if(auth.user)navigate(next,{replace:true});},[auth.user,next,navigate]);
-  return <div className="login-scene"><div className="login-topbar"><Link to="/library" className="login-back">بازگشت به کتابخانه <Icon name="arrow" className="w-4 h-4"/></Link><ThemeToggle/></div><div className="login-card">
+  return <div className="login-scene"><div className="login-topbar"><Link to="/" className="login-back">بازگشت به سایت <Icon name="arrow" className="w-4 h-4"/></Link><ThemeToggle/></div><div className="login-card">
     <div className="login-symbol"><Icon name="book" className="w-8 h-8"/></div><p className="shop-eyebrow" dir="ltr">YOUR NEXT CHAPTER</p><h1>به بون‌بوک خوش آمدی</h1><p>یک حساب، برای خواندن، شنیدن و ساختن کتاب‌ها.</p>
     {auth.error&&<p role="alert" className="notice error">{auth.error}</p>}
     {new URLSearchParams(location.search).has('error')&&<p role="alert" className="notice error">ورود با گوگل کامل نشد. دوباره تلاش کنید.</p>}

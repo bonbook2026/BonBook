@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { listLibrary, getLibraryBook, getLibraryPage, searchLibrary, readingProgress } from '../controllers/libraryController';
 import { authMiddleware } from '../middleware/auth';
+import {requireSection} from '../middleware/siteFeatures';
 const router = Router();
 router.get('/', listLibrary);
-router.get('/search', searchLibrary);
+router.get('/search', requireSection('search'),searchLibrary);
 router.get('/progress', authMiddleware, readingProgress);
 router.put('/progress', authMiddleware, readingProgress);
 router.get('/:id', getLibraryBook);

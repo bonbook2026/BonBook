@@ -11,6 +11,9 @@ const compiled = ts.transpileModule(source, {
 }).outputText;
 
 function loadDemo(storage = new Map()) {
+  const settingsPath=path.join(__dirname,'../src/types/siteSettings.ts');
+  const settings={exports:{},require:reference=>require(path.resolve(path.dirname(settingsPath),reference))};
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync(settingsPath,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,esModuleInterop:true}}).outputText,settings);
   const sandbox = {
     exports: {}, URL,
     window: { location: { href: 'https://bonbook2026.github.io/BonBook/#/order-summary' } },
@@ -20,6 +23,7 @@ function loadDemo(storage = new Map()) {
       removeItem: (key) => storage.delete(key),
     },
     fetch: () => { throw new Error('The preview must never call a backend.'); },
+    require:reference=>{assert.equal(reference,'../types/siteSettings');return settings.exports;},
   };
   vm.runInNewContext(compiled, sandbox);
   const { demoRequest, resetDemoState } = sandbox.exports;
@@ -30,6 +34,12 @@ function loadDemo(storage = new Map()) {
     login: () => demoRequest('/auth/local-telegram', { method: 'POST' }, null),
   };
 }
+
+test('public preview settings load before login without a backend',async()=>{
+  const demo=loadDemo();
+  assert.deepEqual(JSON.parse(JSON.stringify((await demo.request('/site/sections')).features)),{library:true,search:true,store:true,profile:true});
+  assert.equal((await demo.request('/site/library-hero')).hero.titleLines.length,3);
+});
 
 test('demo login works without Telegram and rejects real or absent API credentials', async () => {
   const demo = loadDemo();

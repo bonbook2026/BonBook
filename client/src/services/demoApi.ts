@@ -1,4 +1,5 @@
 import type { Order, User } from '../types';
+import {allSiteFeatures,defaultLibraryHero} from '../types/siteSettings';
 
 const STATE_KEY = 'bonbook_preview_state_v1';
 const DEMO_TOKEN = 'bonbook-preview-session';
@@ -65,6 +66,8 @@ function profileResponse(user: User) {
 
 // This adapter never fetches an API, authenticates Telegram, sends email, or charges money.
 export async function demoRequest<T>(path: string, options: RequestInit, token: string | null): Promise<T> {
+  if(path==='/site/sections')return {features:allSiteFeatures} as T;
+  if(path==='/site/library-hero')return {hero:defaultLibraryHero} as T;
   if(path.startsWith('/library')){const {demoLibraryRequest}=await import('./demoLibraryApi');return demoLibraryRequest(path,options) as T;}
   if(path==='/auth/logout')return {ok:true} as T;
   const state = readState();
