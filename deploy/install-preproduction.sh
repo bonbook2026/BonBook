@@ -25,7 +25,9 @@ install -d -m 0700 -o bonbook -g bonbook "$root/shared/data"
 install -d -m 0700 -o bonbook -g bonbook "$root/shared/npm-cache"
 install -d -m 0700 -o root -g root "$root/shared/backups"
 if [[ -e "$root/current" ]]; then
-    bash "$root/current/deploy/backup-preproduction.sh" >/dev/null
+    tar -xOzf "$archive" deploy/backup-preproduction.sh > "$root/incoming/backup-preproduction.candidate.sh"
+    chmod 0600 "$root/incoming/backup-preproduction.candidate.sh"
+    bash "$root/incoming/backup-preproduction.candidate.sh" >/dev/null
 fi
 if [[ -n "$restore_database" ]]; then
     test ! -e "$root/shared/data/bonbook.db" || { echo 'Refusing to overwrite an existing database'; exit 1; }
