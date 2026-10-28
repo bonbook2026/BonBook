@@ -57,7 +57,14 @@ write_site(http)
 subprocess.run(['certbot', 'certonly', '--non-interactive', '--webroot',
     '--webroot-path', str(webroot), '--cert-name', 'bonbook-preproduction',
     '--domain', hostname, '--account', Path(accounts[0]).parent.name,
-    '--keep-until-expiring'], check=True)
+    '--keep-until-expiring', '--deploy-hook', '/usr/bin/systemctl reload nginx'], check=True)
+renewal = Path('/etc/letsencrypt/renewal/bonbook-preproduction.conf')
+renewal_text = renewal.read_text()
+if not re.search(r'(?m)^renew_hook\s*=', renewal_text):
+    if renewal_text.count('[renewalparams]') != 1:
+        raise SystemExit('Unexpected BonBook renewal settings; review them before continuing.')
+    renewal.write_text(renewal_text.replace('[renewalparams]',
+        '[renewalparams]\nrenew_hook = /usr/bin/systemctl reload nginx', 1))
 https = f'''server {{
     listen 443 ssl;
     listen [::]:443 ssl;
