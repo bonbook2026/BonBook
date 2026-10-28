@@ -1,14 +1,14 @@
 import {createContext,ReactNode,useContext,useEffect,useRef,useState} from 'react';
 import {AudioCue} from '../types';
 import {cueOffset,readingLines} from '../utils/narration';
-export interface NarrationTarget{bookId:number;number:number;title:string;content:string;language:string;audioUrl:string|null;audioCues?:AudioCue[]}
+export interface NarrationTarget{bookId:number;number:number;title:string;content:string;language:string;audioUrl:string|null;audioCues?:AudioCue[];audioCueMode?:string}
 interface NarrationState{target:NarrationTarget|null;status:'idle'|'playing'|'paused';error:string|null;rate:number;position:number;offset:number;approximate:boolean}
 function useNarrationState(){
   const [state,setState]=useState<NarrationState>({target:null,status:'idle',error:null,rate:1,position:0,offset:-1,approximate:false});
   const generation=useRef(0),audio=useRef<HTMLAudioElement|null>(null),current=useRef(state);current.current=state;
   const stop=()=>{generation.current++;audio.current?.pause();audio.current=null;window.speechSynthesis?.cancel();setState(s=>({...s,status:'idle',position:0,offset:-1}));};
   const play=(target:NarrationTarget,rate=current.current.rate)=>{
-    stop();const revision=generation.current;setState({target,status:'playing',error:null,rate,position:0,offset:-1,approximate:Boolean(target.audioUrl&&!target.audioCues?.length)});
+    stop();const revision=generation.current;setState({target,status:'playing',error:null,rate,position:0,offset:-1,approximate:Boolean(target.audioUrl&&(!target.audioCues?.length||target.audioCueMode==='PARTIAL'))});
     const fail=()=>{if(generation.current===revision)setState(s=>({...s,status:'idle',offset:-1,error:'پخش صوت انجام نشد. دوباره دکمهٔ پخش را بزنید.'}));};
     if(target.audioUrl){const player=new Audio(target.audioUrl);audio.current=player;player.playbackRate=rate;
       player.onended=()=>{if(generation.current===revision)setState(s=>({...s,status:'idle',position:100,offset:-1}));};

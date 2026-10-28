@@ -173,3 +173,41 @@ them if the source text or audio changes. The reader highlights the current line
 and optionally scrolls it into view. Playback rate changes use media time.
 Without saved cues, recorded audio uses an explicitly labelled approximate text
 position. Browser narration uses utterance boundaries and spoken-word offsets.
+
+## Bulk narration and offline speech alignment
+
+Select a folder (including subfolders) or multiple audio files in the book editor.
+The preview reads Persian/Arabic/Latin page numbers from filenames and allows
+manual corrections and an offset. Ambiguous names, duplicate pages, missing
+pages and existing narration are flagged before upload. Each file is uploaded
+separately (30 MiB each, up to 2000 files per batch), so a large folder does not
+need one enormous HTTP request. Reselect the same folder to resume an interrupted
+batch; already attached items are idempotent. Replacement requires an explicit
+option and a second check that the destination has not changed since planning.
+
+The isolated `bonbook-speech-worker.service` consumes one recognition job at a
+time, with a 3 GiB memory limit, one CPU quota, low priority and no Internet
+address families. `prepare-speech-alignment.sh` installs a BonBook-only Python
+venv and the pinned official Systran Whisper small conversion. AV is pinned to
+16.1.0 for compatibility. Recognition uses local INT8 CPU inference and actual
+word timestamps. A monotonic matcher handles Persian letter and spacing variants
+against the existing book text; it does not replace that text with a transcript.
+Only complete, high-coverage matches are applied automatically. Partial or weak
+matches are retained for review, with possible alternative page numbers. Current
+text/audio hashes and existing manual cues are checked again at application time.
+
+Model/runtime files live under `shared/speech-venv` and `shared/speech-models`;
+they can be rebuilt by the installer on a new host. Audio originals, batch state,
+recognized word times and results are included in the ordinary media/SQLite
+transfer backup. Override `BONBOOK_SPEECH_PYTHON` and `BONBOOK_SPEECH_MODEL` for
+another compatible local runtime. Run the pure matching tests with
+`python3 -m unittest discover -s server/speech -p test_alignment.py`.
+
+## Illustrated reading pages
+
+Each page can show text, an uploaded image, both, or automatic layout. Short PDF
+pages automatically show the original page image; other pages offer an expandable
+original image. Private/public source permissions are checked before rendering.
+Poppler renders at most one uncached preview at a time; derived PNGs live in
+`shared/data/page-previews`, may be regenerated and are excluded from transfer
+backups. Uploaded page images are ordinary immutable media and are backed up.

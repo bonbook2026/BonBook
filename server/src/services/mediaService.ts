@@ -7,6 +7,8 @@ export function detectMedia(buffer: Buffer, kind: string) {
     if (buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') return { extension: 'webp', mimeType: 'image/webp' };
   }
   if (kind === 'audio') {
+    if(buffer.toString('ascii',0,4)==='fLaC')return {extension:'flac',mimeType:'audio/flac'};
+    if(buffer[0]===255&&(buffer[1]&0xf6)===0xf0)return {extension:'aac',mimeType:'audio/aac'};
     if (buffer.toString('ascii', 0, 3) === 'ID3' || (buffer[0] === 255 && (buffer[1] & 0xe0) === 0xe0)) return { extension: 'mp3', mimeType: 'audio/mpeg' };
     if (buffer.toString('ascii', 0, 4) === 'OggS') return { extension: 'ogg', mimeType: 'audio/ogg' };
     if (buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WAVE') return { extension: 'wav', mimeType: 'audio/wav' };

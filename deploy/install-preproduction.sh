@@ -50,6 +50,9 @@ if ! command -v pdftoppm >/dev/null || ! command -v tesseract >/dev/null || [[ !
     bash "$release/deploy/prepare-document-import.sh"
 fi
 install -m 0600 -o root -g root "$archive" "$root/incoming/$release_id.tar.gz"
+if [[ ! -s "$root/shared/speech-models/.ready" ]]; then
+    bash "$release/deploy/prepare-speech-alignment.sh"
+fi
 runuser -u bonbook -- env NPM_CONFIG_CACHE="$root/shared/npm-cache" NODE_ENV=development DATABASE_URL=file:./bonbook-build.db NODE_OPTIONS=--max-old-space-size=512 nice -n 10 bash -c '
     set -euo pipefail
     cd "$1"
@@ -57,6 +60,7 @@ runuser -u bonbook -- env NPM_CONFIG_CACHE="$root/shared/npm-cache" NODE_ENV=dev
     npm ci --prefix server --no-audit --no-fund
     npm run test:demo --prefix client
     npm test --prefix server
+    python3 -m unittest discover -s server/speech -p test_alignment.py
     NODE_ENV=production npm run build:preproduction
     cd server
     DATABASE_URL=file:/srv/bonbook-preproduction/shared/data/bonbook.db ./node_modules/.bin/prisma migrate deploy
@@ -71,6 +75,7 @@ fi
 install -m 0640 -o root -g bonbook "$environment" "$root/shared/runtime.env"
 install -m 0644 "$release/deploy/bonbook-preproduction.service" /etc/systemd/system/bonbook-preproduction.service
 install -m 0644 "$release/deploy/bonbook-import-worker.service" /etc/systemd/system/bonbook-import-worker.service
+install -m 0644 "$release/deploy/bonbook-speech-worker.service" /etc/systemd/system/bonbook-speech-worker.service
 previous=$(readlink -f "$root/current" || true)
 ln -s "$release" "$root/current.next"
 mv -Tf "$root/current.next" "$root/current"
@@ -99,3 +104,5 @@ fi
 echo "BonBook release $release_id is healthy on loopback port 3135."
 systemctl enable bonbook-import-worker.service
 systemctl restart bonbook-import-worker.service
+systemctl enable bonbook-speech-worker.service
+systemctl restart bonbook-speech-worker.service

@@ -1,0 +1,30 @@
+[Unit]
+Description=BonBook isolated offline speech alignment worker
+After=network.target bonbook-preproduction.service
+
+[Service]
+Type=simple
+User=bonbook
+Group=bonbook
+WorkingDirectory=/srv/bonbook-preproduction/current/server
+EnvironmentFile=/srv/bonbook-preproduction/shared/runtime.env
+Environment=BONBOOK_ENV_FILE=/srv/bonbook-preproduction/shared/runtime.env
+Environment=HF_HUB_OFFLINE=1
+Environment=OMP_NUM_THREADS=2
+ExecStart=/usr/bin/node --max-old-space-size=192 dist/speechWorker.js
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/srv/bonbook-preproduction/shared/data
+MemoryMax=3G
+CPUQuota=100%
+Nice=10
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

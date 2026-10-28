@@ -156,8 +156,10 @@ model MediaAsset {
   createdAt   DateTime      @default(now()) @map("created_at")
   covers      LibraryBook[] @relation("LibraryCover")
   audioPages  LibraryPage[] @relation("PageAudio")
+  pageImages  LibraryPage[] @relation("PageImage")
   sourcePages LibraryPage[] @relation("PageSource")
   imports     BookImport[]
+  alignments  AudioAlignment[]
 
   @@map("media_assets")
 }
@@ -190,6 +192,7 @@ model LibraryBook {
   progress        ReadingProgress[]
   imports         BookImport[]
   contents        BookContents[]
+  audioBatches    AudioBatch[]
 
   @@index([status, categoryId])
   @@map("library_books")
@@ -218,15 +221,80 @@ model LibraryPage {
   searchText       String      @default("") @map("search_text")
   audioAssetId     String?     @map("audio_asset_id")
   audioCues        String      @default("[]") @map("audio_cues")
+  audioCueMode     String      @default("NONE") @map("audio_cue_mode")
+  imageAssetId     String?     @map("image_asset_id")
+  image            MediaAsset? @relation("PageImage", fields: [imageAssetId], references: [id], onDelete: SetNull)
+  visualMode       String      @default("AUTO") @map("visual_mode")
   audio            MediaAsset? @relation("PageAudio", fields: [audioAssetId], references: [id], onDelete: SetNull)
   sourceAssetId    String?     @map("source_asset_id")
   source           MediaAsset? @relation("PageSource", fields: [sourceAssetId], references: [id], onDelete: SetNull)
   sourcePageNumber Int?        @map("source_page_number")
   updatedAt        DateTime    @updatedAt @map("updated_at")
   book             LibraryBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  alignments       AudioAlignment[]
 
   @@unique([bookId, number])
   @@map("library_pages")
+}
+
+model AudioBatch {
+  id              String           @id
+  bookId          Int              @map("book_id")
+  book            LibraryBook      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  status          String           @default("UPLOADING")
+  autoAlign       Boolean          @default(true) @map("auto_align")
+  replaceExisting Boolean          @default(false) @map("replace_existing")
+  createdById     Int              @map("created_by_id")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  items           AudioBatchItem[]
+
+  @@index([bookId, createdAt])
+  @@map("audio_batches")
+}
+
+model AudioBatchItem {
+  id              String     @id
+  batchId         String     @map("batch_id")
+  batch           AudioBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  pageNumber      Int        @map("page_number")
+  filename        String
+  size            Int
+  expectedAssetId String?    @map("expected_asset_id")
+  assetId         String?    @map("asset_id")
+  status          String     @default("WAITING")
+  error           String?
+
+  @@unique([batchId, pageNumber])
+  @@map("audio_batch_items")
+}
+
+model AudioAlignment {
+  id              String      @id
+  pageId          Int         @map("page_id")
+  page            LibraryPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  audioAssetId    String      @map("audio_asset_id")
+  audio           MediaAsset  @relation(fields: [audioAssetId], references: [id])
+  contentHash     String      @map("content_hash")
+  previousCues    String      @default("[]") @map("previous_cues")
+  status          String      @default("QUEUED")
+  progress        Float       @default(0)
+  attempts        Int         @default(0)
+  coverage        Float       @default(0)
+  lineCoverage    Float       @default(0) @map("line_coverage")
+  duration        Float       @default(0)
+  words           String      @default("[]")
+  cues            String      @default("[]")
+  candidates      String      @default("[]")
+  warning         String      @default("")
+  error           String?
+  model           String      @default("faster-whisper-small")
+  createdById     Int         @map("created_by_id")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@index([pageId, createdAt])
+  @@map("audio_alignments")
 }
 
 model BookCategory {

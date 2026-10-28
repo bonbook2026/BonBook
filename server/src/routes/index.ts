@@ -6,7 +6,7 @@ import orderRoutes from './orders';
 import paymentRoutes from './payments';
 import libraryRoutes from './library';
 import adminRoutes from './admin';
-import { readMedia } from '../controllers/mediaController';
+import { readMedia,readPdfPageImage } from '../controllers/mediaController';
 
 const router = Router();
 
@@ -18,5 +18,6 @@ router.use('/payments', paymentRoutes);
 router.use('/library', libraryRoutes);
 router.use('/admin', adminRoutes);
 router.get('/media/:id', readMedia);
+router.get('/media/:id/pages/:page/image',readPdfPageImage);
 
 export default router;

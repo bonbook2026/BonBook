@@ -1,0 +1,14 @@
+import {useEffect,useState} from 'react';
+import {api} from '../services/api';
+import {AudioAlignment} from '../types';
+import {alignmentStatus} from './BatchAudioPanel';
+export function AutomaticAlignment({bookId,pageNumber,saved,onApplied}:{bookId:number;pageNumber:number;saved:boolean;onApplied:()=>void}){
+ const [job,setJob]=useState<AudioAlignment|null>(null),[available,setAvailable]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ useEffect(()=>{let active=true;void api.admin.pageAlignment(bookId,pageNumber).then(result=>{if(active){setAvailable(result.available);setJob(result.alignment);}}).catch(()=>{});return()=>{active=false;};},[bookId,pageNumber]);
+ useEffect(()=>{if(!job||!['QUEUED','PROCESSING'].includes(job.status))return;let active=true;const timer=setInterval(()=>{void api.admin.alignment(job.id).then(result=>{if(active){setJob(result.alignment);if(result.alignment.status==='APPLIED')onApplied();}}).catch(()=>{});},3000);return()=>{active=false;clearInterval(timer);};},[job?.id,job?.status]);
+ const run=async(action:()=>Promise<void>)=>{setBusy(true);setError('');try{await action();}catch(e){setError((e as Error).message);}finally{setBusy(false);}};
+ const pending=Boolean(job&&['QUEUED','PROCESSING'].includes(job.status));
+ return <div className="automatic-alignment"><h3>تشخیص خودکار گفتار و زمان‌بندی</h3><p>سیستم ویس را می‌شنود، واژه‌ها را با متن همین صفحه تطبیق می‌دهد و زمان شروع خط‌ها را می‌سازد. تطبیق‌های مطمئن خودکار اعمال می‌شوند.</p>{!saved&&<small>ابتدا تغییرات صفحه را ذخیره کن.</small>}{!available&&<small>موتور گفتار روی این محیط آماده نیست.</small>}{error&&<p className="notice error" role="alert">{error}</p>}<button type="button" className="reader-button primary" disabled={!saved||!available||busy||pending} onClick={()=>void run(async()=>setJob((await api.admin.startAlignment(bookId,pageNumber)).alignment))}>تشخیص صدا و هماهنگ‌کردن متن</button>
+ {job&&<div className="alignment-state"><strong>{alignmentStatus[job.status]}</strong>{pending&&<><progress max={1} value={job.progress}/><button type="button" onClick={()=>void run(async()=>{await api.admin.cancelAlignment(job.id);setJob({...job,status:'CANCELED'});})}>لغو تشخیص</button></>}{job.progress===1&&<span>تطبیق متن: {Math.round(job.coverage*100).toLocaleString('fa-IR')}٪ · خط‌های پیدا‌شده: {Math.round(job.lineCoverage*100).toLocaleString('fa-IR')}٪</span>}<p>{job.warning||job.error}</p>{job.candidates.length>0&&<p>گفتار به صفحه‌های {job.candidates.map(row=>row.pageNumber.toLocaleString('fa-IR')).join('، ')} هم شباهت دارد؛ شمارهٔ فایل را بررسی کن.</p>}{['READY','REVIEW'].includes(job.status)&&Boolean(job.cues?.length)&&<button type="button" className="reader-button" disabled={!saved||busy} onClick={()=>void run(async()=>{setJob((await api.admin.applyAlignment(job.id)).alignment);onApplied();})}>اعمال زمان‌های پیشنهادی پس از بازبینی</button>}</div>}
+ </div>;
+}

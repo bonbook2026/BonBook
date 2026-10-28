@@ -18,8 +18,10 @@ export function bookJson(book: any) {
 }
 export function pageJson(page: any) {
   return { id: page.id, bookId: page.bookId, number: page.number, heading: page.heading,
-    content: page.content, keywords: page.keywords, audioAssetId: page.audioAssetId,audioCues:JSON.parse(page.audioCues||'[]'),
+    content: page.content, keywords: page.keywords, audioAssetId: page.audioAssetId,audioCues:JSON.parse(page.audioCues||'[]'),audioCueMode:page.audioCueMode||'NONE',
     sourceUrl:page.sourceAssetId?`/api/media/${page.sourceAssetId}`:null,sourcePageNumber:page.sourcePageNumber||null,sourceMimeType:page.source?.mimeType||null,
+    imageAssetId:page.imageAssetId||null,imageUrl:page.imageAssetId?`/api/media/${page.imageAssetId}`:null,visualMode:page.visualMode||'AUTO',
+    sourceImageUrl:page.source?.mimeType==='application/pdf'&&page.sourcePageNumber?`/api/media/${page.sourceAssetId}/pages/${page.sourcePageNumber}/image`:page.source?.mimeType.startsWith('image/')?`/api/media/${page.sourceAssetId}`:null,
     audioUrl: page.audioAssetId ? `/api/media/${page.audioAssetId}` : null, updatedAt: page.updatedAt };
 }
 export const positiveId = (value: unknown) => {

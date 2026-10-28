@@ -108,6 +108,40 @@ describe('Reader, verified identities and administration',()=>{
     expect((await call(url,'PUT',{...withoutCues,content:page.content+' یادداشت جدید.'},token)).status).toBe(200);
     expect((await (await call('/api/library/'+book.id+'/pages/7')).json()).page.audioCues).toEqual([]);
   });
+  it('attaches bulk audio idempotently, protects existing audio and applies only current alignment snapshots',async()=>{
+    const token=generateToken(owner.id,owner.telegramId),readerToken=generateToken(reader.id,reader.telegramId);
+    const target=(await (await call('/api/admin/books','POST',{title:'ورود گروهی آزمایشی'},token)).json()).book;
+    const pageData={heading:'خواندن',content:'متن اول کتاب. متن دوم کتاب.',keywords:''};
+    for(const number of [1,2])expect((await call(`/api/admin/books/${target.id}/pages/${number}`,'PUT',pageData,token)).status).toBe(200);
+    const baseUrl=`/api/admin/books/${target.id}/audio-batches`;
+    const wav=Buffer.alloc(48);wav.write('RIFF');wav.writeUInt32LE(40,4);wav.write('WAVE',8);
+    expect((await call(baseUrl,'POST',{files:[{filename:'01.wav',pageNumber:1,size:48}]},readerToken)).status).toBe(403);
+    expect((await call(baseUrl,'POST',{files:[{filename:'01.wav',pageNumber:1,size:48},{filename:'copy.wav',pageNumber:1,size:48}]},token)).status).toBe(400);
+    expect((await call(baseUrl,'POST',{files:[{filename:'99.wav',pageNumber:99,size:48}]},token)).status).toBe(409);
+    const batch=(await (await call(baseUrl,'POST',{files:[{filename:'01.wav',pageNumber:1,size:48}],autoAlign:true},token)).json()).batch;
+    const upload=()=>{const data=new FormData();data.append('file',new Blob([wav],{type:'audio/wav'}),'01.wav');return fetch(base+`/api/admin/media/audio-batches/${batch.id}/items/${batch.items[0].id}`,{method:'POST',headers:{Authorization:'Bearer '+token},body:data});};
+    expect((await upload()).status).toBe(200);const before=await prisma.mediaAsset.count();expect((await upload()).status).toBe(200);expect(await prisma.mediaAsset.count()).toBe(before);
+    expect((await call(baseUrl,'POST',{files:[{filename:'01.wav',pageNumber:1,size:48}]},token)).status).toBe(409);
+    const page=await prisma.libraryPage.findUnique({where:{bookId_number:{bookId:target.id,number:1}}});expect(page.audioAssetId).toBeTruthy();
+    const job=await prisma.audioAlignment.findFirst({where:{pageId:page.id}});expect(job.status).toBe('QUEUED');
+    await prisma.audioAlignment.update({where:{id:job.id},data:{status:'READY',cues:JSON.stringify([{offset:0,time:0}]),lineCoverage:1,coverage:1}});
+    expect((await call(`/api/admin/alignments/${job.id}/apply`,'POST',{},token)).status).toBe(200);
+    expect((await prisma.libraryPage.findUnique({where:{id:page.id}})).audioCueMode).toBe('AUTO');
+    const {queueAlignment}=await import('../src/services/speechService');const updated=await prisma.libraryPage.findUnique({where:{id:page.id}}),stale=await queueAlignment(prisma,updated,owner.id);
+    await prisma.audioAlignment.update({where:{id:stale.id},data:{status:'REVIEW',cues:JSON.stringify([{offset:0,time:1}])}});
+    await call(`/api/admin/books/${target.id}/pages/1`,'PUT',{...pageData,content:pageData.content+' تغییر متن.',audioAssetId:page.audioAssetId},token);
+    expect((await call(`/api/admin/alignments/${stale.id}/apply`,'POST',{},token)).status).toBe(409);
+  });
+  it('keeps illustrated pages private until publication and permits image-only content',async()=>{
+    const token=generateToken(owner.id,owner.telegramId),target=(await (await call('/api/admin/books','POST',{title:'تصویر آزمایشی'},token)).json()).book;
+    const image=new FormData();image.append('file',new Blob([Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000b49444154789c636000020000050001a5f645400000000049454e44ae426082','hex')],{type:'image/png'}),'page.png');
+    const uploaded=await (await fetch(base+'/api/admin/media/page-image',{method:'POST',headers:{Authorization:'Bearer '+token},body:image})).json();
+    expect((await call(`/api/admin/books/${target.id}/pages/1`,'PUT',{heading:'تصویر',content:'',keywords:'',imageAssetId:uploaded.asset.id,visualMode:'IMAGE'},token)).status).toBe(200);
+    expect((await call(uploaded.asset.url)).status).toBe(404);
+    expect((await call(`/api/admin/books/${target.id}/state`,'POST',{action:'publish'},token)).status).toBe(200);
+    const page=(await (await call(`/api/library/${target.id}/pages/1`)).json()).page;expect(page.imageUrl).toBe(uploaded.asset.url);expect(page.visualMode).toBe('IMAGE');expect((await call(uploaded.asset.url)).status).toBe(200);
+    expect((await call(`/api/admin/books/${target.id}/state`,'POST',{action:'hide'},token)).status).toBe(200);expect((await call(uploaded.asset.url)).status).toBe(404);
+  });
   it('binds Google login to PKCE, state and a verified ID token, then rejects replay',async()=>{
     const start=await fetch(base+'/api/auth/google/start?next=/admin',{redirect:'manual'});
     const authorization=new URL(start.headers.get('location')!),state=authorization.searchParams.get('state')!,cookie=start.headers.get('set-cookie')!.split(';')[0];

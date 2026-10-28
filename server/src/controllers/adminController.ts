@@ -75,19 +75,24 @@ export async function savePage(req: AuthRequest, res: Response, next: NextFuncti
     if (number > 100_000) throw new HttpError(400, 'شمارهٔ صفحه معتبر نیست.');
     const book=await prisma.libraryBook.findUnique({where:{id:bookId}});
     if(!book||book.status==='TRASH')throw new HttpError(404,'کتاب در دسترس نیست.');
-    if(req.method==='GET'){const page=await prisma.libraryPage.findUnique({where:{bookId_number:{bookId,number}}});if(!page)throw new HttpError(404,'صفحه پیدا نشد.');res.json({page:pageJson(page)});return;}
+    if(req.method==='GET'){const page=await prisma.libraryPage.findUnique({where:{bookId_number:{bookId,number}},include:{source:{select:{mimeType:true}}}});if(!page)throw new HttpError(404,'صفحه پیدا نشد.');res.json({page:pageJson(page)});return;}
     if (req.method === 'DELETE') {
       await prisma.libraryPage.deleteMany({ where: { bookId, number } });
       await prisma.bookContents.deleteMany({where:{bookId,pageNumber:number}});
       if (!await prisma.libraryPage.count({ where: { bookId } })) await prisma.libraryBook.update({ where: { id: bookId }, data: { status: 'DRAFT' } });
       res.json({ ok: true }); return;
     }
-    const heading = text(req.body.heading, 200), content = text(req.body.content, 40_000, true), keywords = text(req.body.keywords, 600);
+    const heading = text(req.body.heading, 200), content = text(req.body.content, 40_000), keywords = text(req.body.keywords, 600);
     const audioAssetId = await asset(req.body.audioAssetId, 'audio');
-    const existing=await prisma.libraryPage.findUnique({where:{bookId_number:{bookId,number}},select:{content:true,audioAssetId:true,audioCues:true}});
+    const existing=await prisma.libraryPage.findUnique({where:{bookId_number:{bookId,number}}});
+    const imageAssetId=req.body.imageAssetId===undefined?existing?.imageAssetId||null:await asset(req.body.imageAssetId,'page-image'),visualMode=req.body.visualMode||existing?.visualMode||'AUTO';
+    if(!['AUTO','TEXT','IMAGE','BOTH'].includes(visualMode))throw new HttpError(400,'شیوهٔ نمایش صفحه معتبر نیست.');
+    if(!content&&!imageAssetId&&!existing?.sourceAssetId)throw new HttpError(400,'متن یا تصویر صفحه را وارد کنید.');
     const audioCues=req.body.audioCues===undefined?(existing?.content===content&&existing?.audioAssetId===audioAssetId?existing.audioCues:'[]'):validateAudioCues(req.body.audioCues,content,audioAssetId);
-    const data = { heading, content, keywords, audioAssetId,audioCues,searchText: normalizePersian(heading + ' ' + keywords + ' ' + content) };
-    const page = await prisma.libraryPage.upsert({ where: { bookId_number: { bookId, number } }, create: { bookId, number, ...data }, update: data });
+    const same=existing?.content===content&&existing.audioAssetId===audioAssetId&&existing.audioCues===audioCues;
+    const data = { heading, content, keywords, audioAssetId,audioCues,imageAssetId,visualMode,audioCueMode:same?existing!.audioCueMode:audioCues==='[]'?'NONE':'MANUAL',searchText: normalizePersian(heading + ' ' + keywords + ' ' + content) };
+    const page = await prisma.libraryPage.upsert({ where: { bookId_number: { bookId, number } }, create: { bookId, number, ...data }, update: data,include:{source:{select:{mimeType:true}}} });
+    if(existing&&(existing.content!==content||existing.audioAssetId!==audioAssetId))await prisma.audioAlignment.updateMany({where:{pageId:page.id,status:{in:['QUEUED','PROCESSING']}},data:{status:'CANCELED',warning:'متن یا ویس صفحه تغییر کرد.'}});
     await prisma.libraryBook.update({ where: { id: bookId }, data: { updatedAt: new Date() } });
     res.json({ page: pageJson(page) });
   } catch (error) { next(error); }

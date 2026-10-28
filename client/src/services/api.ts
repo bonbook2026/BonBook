@@ -1,4 +1,4 @@
-import { AuthResponse, BookInfo, Order, User, LibraryBook, LibraryPage, SearchResult, AdminGrant,PageSummary,BookCategory,BookImport,ImportedPage,ContentsEntry } from '../types';
+import { AuthResponse, BookInfo, Order, User, LibraryBook, LibraryPage, SearchResult, AdminGrant,PageSummary,BookCategory,BookImport,ImportedPage,ContentsEntry,AudioBatch,AudioAlignment } from '../types';
 import { IS_DEMO, IS_PREPRODUCTION } from '../config/demo';
 
 const BASE_URL = '/api';
@@ -131,6 +131,21 @@ export const api = {
     saveProgress: (bookId: number, pageNumber: number) => request<{ok: boolean}>('/library/progress', {method:'PUT', body:JSON.stringify({bookId,pageNumber})}),
   },
   admin: {
+    audioOptions:(id:number)=>request<{pages:{number:number;heading:string;audioAssetId:string|null}[];speech:boolean;maxFileBytes:number;maxFiles:number}>(`/admin/books/${id}/audio-options`),
+    audioBatches:(id:number)=>request<{batches:AudioBatch[]}>(`/admin/books/${id}/audio-batches`),
+    createAudioBatch:(id:number,files:{filename:string;pageNumber:number;size:number}[],replaceExisting:boolean,autoAlign:boolean)=>request<{batch:AudioBatch}>(`/admin/books/${id}/audio-batches`,{method:'POST',body:JSON.stringify({files,replaceExisting,autoAlign})}),
+    audioBatch:(id:string)=>request<{batch:AudioBatch}>(`/admin/audio-batches/${id}`),
+    cancelAudioBatch:(id:string)=>request<{ok:boolean}>(`/admin/audio-batches/${id}`,{method:'DELETE'}),
+    uploadBatchAudio:(batchId:string,itemId:string,file:File,onProgress:(percent:number)=>void)=>new Promise<void>((resolve,reject)=>{
+      const xhr=new XMLHttpRequest(),body=new FormData();body.append('file',file);xhr.open('POST',`${BASE_URL}/admin/media/audio-batches/${batchId}/items/${itemId}`);const token=getToken();if(token)xhr.setRequestHeader('Authorization','Bearer '+token);
+      xhr.upload.onprogress=event=>{if(event.lengthComputable)onProgress(event.loaded/event.total*100);};xhr.onerror=()=>reject(new Error('ارتباط قطع شد؛ می‌توانی بارگذاری را ادامه بدهی.'));xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300)resolve();else{let message='بارگذاری کامل نشد.';try{message=JSON.parse(xhr.responseText).error||message;}catch{}reject(new Error(message));}};xhr.send(body);
+    }),
+    pageAlignment:(id:number,page:number)=>request<{available:boolean;alignment:AudioAlignment|null}>(`/admin/books/${id}/pages/${page}/alignment`),
+    startAlignment:(id:number,page:number)=>request<{alignment:AudioAlignment}>(`/admin/books/${id}/pages/${page}/alignment`,{method:'POST'}),
+    alignment:(id:string)=>request<{alignment:AudioAlignment}>(`/admin/alignments/${id}`),
+    applyAlignment:(id:string,replaceManual=false)=>request<{alignment:AudioAlignment}>(`/admin/alignments/${id}/apply`,{method:'POST',body:JSON.stringify({replaceManual})}),
+    cancelAlignment:(id:string)=>request<{ok:boolean}>(`/admin/alignments/${id}`,{method:'DELETE'}),
+    alignBook:(id:number,replaceExisting=false)=>request<{queued:number;skipped:number}>(`/admin/books/${id}/align-audio`,{method:'POST',body:JSON.stringify({replaceExisting})}),
     books: (filters:Record<string,string>={}) => request<{books: LibraryBook[];total:number;page:number;pageSize:number;counts:Record<string,number>}>('/admin/books?'+new URLSearchParams(filters)),
     createBook: (title: string) => request<{book: LibraryBook}>('/admin/books', {method:'POST',body:JSON.stringify({title})}),
     book: (id: number) => request<{book: LibraryBook; pages: PageSummary[]}>(`/admin/books/${id}`),
@@ -155,12 +170,12 @@ export const api = {
       const response=await fetch(`${BASE_URL}/admin/media/import/${bookId}`,{method:'POST',headers:{Authorization:`Bearer ${getToken()||''}`},body});
       const result=await response.json().catch(()=>({error:'بارگذاری کامل نشد. مجموع فایل‌ها باید حداکثر ۳۰ مگابایت باشد.'}));if(!response.ok)throw new ApiError(result.error,response.status);return result as {import:BookImport};
     },
-    savePage: (bookId: number, page: Pick<LibraryPage,'number'|'heading'|'content'|'keywords'|'audioAssetId'|'audioCues'>) => request<{page:LibraryPage}>(`/admin/books/${bookId}/pages/${page.number}`, {method:'PUT',body:JSON.stringify(page)}),
+    savePage: (bookId: number, page: Pick<LibraryPage,'number'|'heading'|'content'|'keywords'|'audioAssetId'|'audioCues'|'imageAssetId'|'visualMode'>) => request<{page:LibraryPage}>(`/admin/books/${bookId}/pages/${page.number}`, {method:'PUT',body:JSON.stringify(page)}),
     deletePage: (bookId: number, page: number) => request<{ok:boolean}>(`/admin/books/${bookId}/pages/${page}`, {method:'DELETE'}),
     access: () => request<{grants:AdminGrant[]}>('/admin/access'),
     addAdmin: (identifier: string) => request<{grant:AdminGrant}>('/admin/access', {method:'POST',body:JSON.stringify({identifier})}),
     removeAdmin: (id:number) => request<{ok:boolean}>(`/admin/access/${id}`, {method:'DELETE'}),
-    upload: async (kind: 'cover'|'audio', file: File) => {
+    upload: async (kind: 'cover'|'audio'|'page-image', file: File) => {
       const data = new FormData(); data.append('file',file);
       const response = await fetch(`${BASE_URL}/admin/media/${kind}`, {method:'POST',headers:{Authorization:`Bearer ${getToken() || ''}`},body:data});
       const result = await response.json(); if (!response.ok) throw new Error(result.error || 'بارگذاری انجام نشد.');
