@@ -1,0 +1,10 @@
+import {LibraryBook} from '../types';
+import {useNarration} from '../hooks/useNarration';
+import {recordedPages} from '../utils/bookAudioQueue';
+import {Icon} from './Icon';
+export function BookPlaybackControls({book}:{book:LibraryBook}){
+ const audio=useNarration(),pages=recordedPages(book.pages||[]),session=audio.mode==='book'&&audio.playlist?.bookId===book.id?audio.playlist:null;
+ const loading=Boolean(session&&!session.completed&&audio.status==='loading'),playing=Boolean(session&&!session.completed&&audio.status==='playing'),paused=Boolean(session&&!session.completed&&audio.status==='paused');
+ const label=loading?'در حال آماده‌کردن ویس…':playing?'مکث پخش کامل':paused?'ادامهٔ پخش کامل':session?.completed?'پخش دوبارهٔ کتاب':'پخش کامل کتاب';
+ return <section className="book-playback-controls" aria-label="پخش پیوستهٔ کتاب"><div className="book-playback-copy"><strong>کتاب را یک‌نفس بشنو</strong><p>{pages.length?`${pages.length.toLocaleString('fa-IR')} ویس؛ صفحه‌های بدون ویس خودکار رد می‌شوند.`:'هنوز ویس ضبط‌شده‌ای برای این کتاب بارگذاری نشده است.'}</p>{session&&<span role="status">{session.completed?'پخش همهٔ ویس‌های کتاب به پایان رسید.':`ویس ${(session.index+1).toLocaleString('fa-IR')} از ${session.total.toLocaleString('fa-IR')} · صفحهٔ ${(pages[session.index]||0).toLocaleString('fa-IR')}`}</span>}</div><div className="book-playback-actions"><button className="reader-button primary" disabled={!pages.length||loading} onClick={()=>{if(playing)audio.pause();else if(paused)audio.resume();else audio.playBook(book);}}><Icon name={playing?'pause':'play'} className="w-5 h-5"/>{label}</button>{session&&!session.completed&&<><button className="reader-button" aria-label="ویس قبلی کتاب" disabled={session.index<=0} onClick={audio.previousBook}>ویس قبلی</button><button className="reader-button" aria-label="ویس بعدی کتاب" disabled={session.index>=session.total-1} onClick={audio.nextBook}>ویس بعدی</button><button className="reader-button" onClick={audio.stop}>پایان پخش کامل</button></>}</div>{session&&audio.error&&<p className="notice error" role="alert">{audio.error}</p>}</section>;
+}

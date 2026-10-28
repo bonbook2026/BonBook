@@ -46,7 +46,7 @@ export interface LibraryBook {
   coverLayout?: 'SINGLE' | 'SPREAD'; coverFrontSide?: 'LEFT' | 'RIGHT';
   coverSpineStart?: number; coverSpineEnd?: number;
   status: 'DRAFT' | 'PUBLISHED' | 'HIDDEN' | 'ARCHIVED' | 'TRASH'; isSample: boolean; pageCount: number; updatedAt: string;
-  pages?: { number: number; heading: string }[];
+  pages?: { number: number; heading: string;hasAudio?:boolean }[];
   contents?:ContentsEntry[];
 }
 export interface ContentsEntry{title:string;pageNumber:number;level:number}

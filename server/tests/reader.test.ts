@@ -76,6 +76,7 @@ describe('Reader, verified identities and administration',()=>{
     const results=(await (await call('/api/library/search?q='+encodeURIComponent('درباره تمركز از کتاب پیدا کن'))).json()).results;
     expect(results[0]).toMatchObject({bookId:book.id,number:7,heading:'تمرکز موقع مطالعه'});expect(results[0].content).toContain('تلفن');
     expect((await call(uploaded.asset.url)).status).toBe(200);
+    const audioPages=(await (await call('/api/library/'+book.id)).json()).book.pages;expect(audioPages.find((page:any)=>page.number===7).hasAudio).toBe(true);
     const readerToken=generateToken(reader.id,reader.telegramId);
     expect((await call('/api/library/progress','PUT',{bookId:book.id,pageNumber:7},readerToken)).status).toBe(200);
     expect((await (await call('/api/library/progress','GET',undefined,readerToken)).json()).progress[0].pageNumber).toBe(7);
@@ -197,6 +198,7 @@ describe('Reader, verified identities and administration',()=>{
     const applied=await call('/api/admin/imports/'+job.id+'/apply','POST',{startPage:10},token);expect(applied.status).toBe(200);expect((await applied.json()).added).toBeGreaterThan(2);
     expect((await (await call('/api/library/'+book.id+'/pages/7')).json()).page.content).toContain('تلفن');
     expect((await (await call('/api/library/'+book.id+'/pages/10')).json()).page.sourceUrl).toBe('/api/media/'+source.id);
+    const listing=(await (await call('/api/library/'+book.id)).json()).book.pages;expect(listing.find((page:any)=>page.number===7).hasAudio).toBe(true);expect(listing.find((page:any)=>page.number===10).hasAudio).toBe(false);
     expect((await (await call('/api/admin/imports/'+job.id+'/apply','POST',{startPage:10},token)).json()).added).toBe(0);
   });
   it('organizes nested categories and supports reversible hide, archive and trash',async()=>{

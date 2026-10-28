@@ -13,7 +13,7 @@ export function bookJson(book: any) {
     coverLayout: book.coverLayout, coverFrontSide: book.coverFrontSide,
     coverSpineStart: book.coverSpineStart, coverSpineEnd: book.coverSpineEnd,
     pageCount: book._count?.pages ?? book.pages?.length ?? 0, updatedAt: book.updatedAt,
-    ...(book.pages ? { pages: book.pages.map((page: any) => ({ number: page.number, heading: page.heading })) } : {}),
+    ...(book.pages ? { pages: book.pages.map((page: any) => ({ number: page.number, heading: page.heading,hasAudio:Boolean(page.audioAssetId) })) } : {}),
     ...(book.contents ? {contents:book.contents.map((entry:any)=>({title:entry.title,pageNumber:entry.pageNumber,level:entry.level}))}: {}) };
 }
 export function pageJson(page: any) {
@@ -38,7 +38,7 @@ export async function listLibrary(req: Request, res: Response, next: NextFunctio
 }
 export async function getLibraryBook(req: Request, res: Response, next: NextFunction) {
   try {
-    const book = await prisma.libraryBook.findFirst({ where: { id: positiveId(req.params.id), status: 'PUBLISHED' }, include: { contents:{orderBy:{position:'asc'}},pages: { select: { number: true, heading: true }, orderBy: { number: 'asc' } } } });
+    const book = await prisma.libraryBook.findFirst({ where: { id: positiveId(req.params.id), status: 'PUBLISHED' }, include: { contents:{orderBy:{position:'asc'}},pages: { select: { number: true, heading: true,audioAssetId:true }, orderBy: { number: 'asc' } } } });
     if (!book) throw new HttpError(404, 'کتاب در دسترس نیست.');
     res.json({ book: bookJson(book) });
   } catch (error) { next(error); }

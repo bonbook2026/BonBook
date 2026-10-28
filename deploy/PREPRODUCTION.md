@@ -206,6 +206,18 @@ transfer backup. Override `BONBOOK_SPEECH_PYTHON` and `BONBOOK_SPEECH_MODEL` for
 another compatible local runtime. Run the pure matching tests with
 `python3 -m unittest discover -s server/speech -p test_alignment.py`.
 
+## Continuous book playback
+
+The reader offers full-book playback using the ordered list of pages that have
+uploaded narration. Silent pages are skipped, including narration removed after
+the metadata was loaded. The player reuses one audio element, preserves speed and
+pause state, and lazily loads the next narrated page. The reader follows the active
+recording with a history-replacing route change and uses the loaded page data for
+the text and timing highlights. Failed loads pause for retry or an explicit skip;
+they never substitute browser speech. Stop cancels pending page loads, and the
+last recording ends the playlist without looping. Ordinary page-by-page reading
+and browser narration remain available outside full-book playback.
+
 ## Illustrated reading pages
 
 Each page can show text, an uploaded image, both, or automatic layout. Short PDF
