@@ -22,6 +22,7 @@ if ! id bonbook >/dev/null 2>&1; then
 fi
 install -d -m 0750 -o root -g bonbook "$root" "$root/releases" "$root/shared" "$root/incoming"
 install -d -m 0700 -o bonbook -g bonbook "$root/shared/data"
+install -d -m 0700 -o bonbook -g bonbook "$root/shared/npm-cache"
 install -d -m 0700 -o root -g root "$root/shared/backups"
 if [[ -e "$root/current" ]]; then
     bash "$root/current/deploy/backup-preproduction.sh" >/dev/null
@@ -36,7 +37,7 @@ install -d -m 0750 -o bonbook -g bonbook "$release"
 tar -xzf "$archive" -C "$release" --no-same-owner
 chown -R bonbook:bonbook "$release"
 install -m 0600 -o root -g root "$archive" "$root/incoming/$release_id.tar.gz"
-runuser -u bonbook -- env NODE_ENV=development DATABASE_URL=file:./bonbook-build.db NODE_OPTIONS=--max-old-space-size=512 nice -n 10 bash -c '
+runuser -u bonbook -- env NPM_CONFIG_CACHE="$root/shared/npm-cache" NODE_ENV=development DATABASE_URL=file:./bonbook-build.db NODE_OPTIONS=--max-old-space-size=512 nice -n 10 bash -c '
     set -euo pipefail
     cd "$1"
     npm ci --prefix client --no-audit --no-fund
