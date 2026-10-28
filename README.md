@@ -24,6 +24,10 @@ Open http://127.0.0.1:4173/BonBook/.
 
 ## Run locally
 
+For real Telegram login on an isolated server, see [the preproduction deployment
+and transfer guide](deploy/PREPRODUCTION.md). The GitHub Pages preview remains a
+browser-only demo; preproduction uses its own server, credentials and database.
+
 Install Node.js 20 or newer, then run these commands from the project folder:
 
 ```powershell

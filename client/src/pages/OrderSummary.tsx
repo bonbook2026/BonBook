@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { PurchaseSteps } from '../components/PurchaseSteps';
 import { api } from '../services/api';
-import { IS_DEMO } from '../config/demo';
+import { IS_DEMO, IS_PREPRODUCTION } from '../config/demo';
 import { formatToman } from '../utils/money';
 
 export function OrderSummary() {
@@ -41,6 +41,11 @@ export function OrderSummary() {
     try {
       const result = await api.orders.create(books);
       const order = result.order;
+
+      if (IS_PREPRODUCTION) {
+        navigate('/orders');
+        return;
+      }
 
       const paymentResult = await api.payments.initiate(order.id);
       window.location.href = paymentResult.paymentUrl;
@@ -109,7 +114,7 @@ export function OrderSummary() {
           disabled={creating || unitPrice === null}
           className="w-full bg-brand-600 text-white py-3 rounded-xl font-medium hover:bg-brand-700 active:bg-brand-800 transition-colors disabled:opacity-50"
         >
-          {creating ? 'در حال پردازش...' : IS_DEMO ? 'شبیه‌سازی پرداخت موفق' : 'پرداخت'}
+          {creating ? 'در حال پردازش...' : IS_PREPRODUCTION ? 'ثبت سفارش آزمایشی بدون پرداخت' : IS_DEMO ? 'شبیه‌سازی پرداخت موفق' : 'پرداخت'}
         </button>
       </div>
     </Layout>

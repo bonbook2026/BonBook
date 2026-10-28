@@ -1,11 +1,13 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: process.env.BONBOOK_ENV_FILE || path.resolve(__dirname, '../../.env') });
 
 export const config = {
   port: parseInt(process.env.PORT || '3001', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
+  preproduction: process.env.APP_ENV === 'preproduction',
+  host: process.env.HOST || '',
   jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
   localTelegramLogin: process.env.ENABLE_LOCAL_TELEGRAM_LOGIN === 'true',
 

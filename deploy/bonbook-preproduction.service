@@ -1,0 +1,26 @@
+[Unit]
+Description=BonBook isolated preproduction
+After=network.target
+
+[Service]
+Type=simple
+User=bonbook
+Group=bonbook
+WorkingDirectory=/srv/bonbook-preproduction/current/server
+EnvironmentFile=/srv/bonbook-preproduction/shared/runtime.env
+Environment=BONBOOK_ENV_FILE=/srv/bonbook-preproduction/shared/runtime.env
+ExecStart=/usr/bin/node dist/preproduction.js
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/bonbook-preproduction/shared/data
+MemoryMax=384M
+CPUQuota=50%
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

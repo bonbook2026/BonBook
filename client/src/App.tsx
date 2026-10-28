@@ -11,7 +11,7 @@ import { Orders } from './pages/Orders';
 import { Success } from './pages/Success';
 import { PaymentFailed } from './pages/PaymentFailed';
 import { api } from './services/api';
-import { IS_DEMO } from './config/demo';
+import { IS_DEMO, IS_PREPRODUCTION } from './config/demo';
 
 function AppContent() {
   const { initData: telegramInitData } = useTelegram();
@@ -85,7 +85,7 @@ function AppContent() {
             <p role="alert" className="text-red-500 text-sm mb-4">{error}</p>
           ) : (
             <p className="text-gray-500 text-sm mb-4">
-              لطفاً از طریق Telegram وارد شوید.
+              {IS_PREPRODUCTION ? 'برای ورود به پیش‌تولید، فروشگاه را از داخل بات تلگرام باز کنید.' : 'لطفاً از طریق Telegram وارد شوید.'}
             </p>
           )}
         </div>
@@ -95,6 +95,12 @@ function AppContent() {
 
   return (
     <>
+    {IS_PREPRODUCTION && (
+      <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900">
+        <span>پیش‌تولید · ورود واقعی تلگرام · پرداخت غیرفعال</span>
+        <button onClick={() => { logout(); navigate('/', { replace: true }); }} className="rounded-lg px-3 py-1.5 font-medium hover:bg-amber-100">خروج از حساب</button>
+      </div>
+    )}
     {(IS_DEMO || (isLocalBrowser && user?.telegramId === 'local:telegram:bonbook')) && (
       <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900">
         <span>{IS_DEMO ? 'نسخهٔ آزمایشی · بدون پرداخت و ارسال واقعی' : 'حساب آزمایشی تلگرام'}</span>
@@ -125,7 +131,7 @@ function AppContent() {
 }
 
 export default function App() {
-  const Router = IS_DEMO ? HashRouter : BrowserRouter;
+  const Router = IS_DEMO || IS_PREPRODUCTION ? HashRouter : BrowserRouter;
   return (
     <Router>
       <AppContent />

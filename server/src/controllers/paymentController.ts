@@ -5,12 +5,17 @@ import { PaymentService } from '../services/paymentService';
 import { DeliveryService } from '../services/deliveryService';
 import { createPaymentProvider } from '../providers/payment';
 import { createEmailProvider } from '../providers/email';
+import { config } from '../config';
 
 const orderService = new OrderService();
 const paymentService = new PaymentService(createPaymentProvider());
 const deliveryService = new DeliveryService(createEmailProvider());
 
 export async function initiatePayment(req: AuthRequest, res: Response, next: NextFunction) {
+  if (config.preproduction) {
+    res.status(403).json({ error: 'پرداخت واقعی در پیش‌تولید غیرفعال است.' });
+    return;
+  }
   try {
     const { orderId } = req.body;
 
@@ -58,6 +63,10 @@ export async function initiatePayment(req: AuthRequest, res: Response, next: Nex
 }
 
 export async function paymentCallback(req: Request, res: Response, next: NextFunction) {
+  if (config.preproduction) {
+    res.status(403).json({ error: 'پرداخت واقعی در پیش‌تولید غیرفعال است.' });
+    return;
+  }
   try {
     const { payment_id, order_id, status } = req.query;
 
@@ -112,6 +121,10 @@ export async function paymentCallback(req: Request, res: Response, next: NextFun
 }
 
 export async function verifyPaymentManual(req: AuthRequest, res: Response, next: NextFunction) {
+  if (config.preproduction) {
+    res.status(403).json({ error: 'پرداخت واقعی در پیش‌تولید غیرفعال است.' });
+    return;
+  }
   try {
     const { paymentId, orderId } = req.body;
 

@@ -1,8 +1,8 @@
 import { AuthResponse, BookInfo, Order } from '../types';
-import { IS_DEMO } from '../config/demo';
+import { IS_DEMO, IS_PREPRODUCTION } from '../config/demo';
 
-const BASE_URL = '/api';
-const TOKEN_KEY = IS_DEMO ? 'bonbook_preview_token' : 'bonbook_token';
+const BASE_URL = IS_PREPRODUCTION ? `${import.meta.env.BASE_URL}api` : '/api';
+const TOKEN_KEY = IS_DEMO ? 'bonbook_preview_token' : IS_PREPRODUCTION ? 'bonbook_preproduction_token' : 'bonbook_token';
 
 let authToken: string | null = null;
 
