@@ -1,6 +1,13 @@
-type IconName = 'book' | 'home' | 'orders' | 'user' | 'arrow' | 'plus' | 'mail' | 'search' | 'play' | 'pause' | 'headphones' | 'shield' | 'shop' | 'chevron' | 'stop';
+type IconName = 'book' | 'home' | 'orders' | 'user' | 'arrow' | 'plus' | 'mail' | 'search' | 'play' | 'pause' | 'headphones' | 'shield' | 'shop' | 'chevron' | 'stop' | 'bookmark' | 'expand' | 'sun' | 'moon' | 'close' | 'replay' | 'next';
 
 const paths: Record<IconName, string> = {
+  bookmark:'M6 3h12v18l-6-4-6 4V3z',
+  expand:'M3 9V3h6M15 3h6v6M21 15v6h-6M9 21H3v-6',
+  sun:'M16 12a4 4 0 11-8 0 4 4 0 018 0zM12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5',
+  moon:'M21 14.5A9 9 0 019.5 3 9 9 0 1021 14.5z',
+  close:'M6 6l12 12M6 18L18 6',
+  replay:'M4 10a8 8 0 112 8M4 3v7h7',
+  next:'M7 5l10 7-10 7V5zM20 5v14',
   search: 'M21 21l-5.2-5.2M18 10.5a7.5 7.5 0 11-15 0 7.5 7.5 0 0115 0z',
   play: 'M8 5v14l11-7L8 5z',
   pause: 'M8 5v14M16 5v14',

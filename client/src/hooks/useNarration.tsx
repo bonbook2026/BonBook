@@ -5,23 +5,23 @@ import {cueOffset,readingLines} from '../utils/narration';
 import {BookAudioQueue,recordedPages} from '../utils/bookAudioQueue';
 export interface NarrationTarget{bookId:number;number:number;title:string;content:string;language:string;audioUrl:string|null;audioCues?:AudioCue[];audioCueMode?:string;page?:LibraryPage}
 interface BookPlayback{bookId:number;index:number;total:number;completed:boolean}
-interface NarrationState{target:NarrationTarget|null;status:'idle'|'loading'|'playing'|'paused';mode:'page'|'book';playlist:BookPlayback|null;error:string|null;rate:number;position:number;offset:number;approximate:boolean}
+interface NarrationState{target:NarrationTarget|null;status:'idle'|'loading'|'playing'|'paused';mode:'page'|'book';playlist:BookPlayback|null;error:string|null;rate:number;position:number;offset:number;approximate:boolean;elapsedSeconds:number;durationSeconds:number}
 function useNarrationState(){
- const [state,setState]=useState<NarrationState>({target:null,status:'idle',mode:'page',playlist:null,error:null,rate:1,position:0,offset:-1,approximate:false});
+ const [state,setState]=useState<NarrationState>({target:null,status:'idle',mode:'page',playlist:null,error:null,rate:1,position:0,offset:-1,approximate:false,elapsedSeconds:0,durationSeconds:0});
  const generation=useRef(0),audio=useRef<HTMLAudioElement|null>(null),current=useRef(state),queue=useRef<BookAudioQueue<NarrationTarget>|null>(null),bookPaused=useRef(false);current.current=state;
  const publish=(patch:Partial<NarrationState>)=>{const next={...current.current,...patch};current.current=next;setState(next);};
  const halt=()=>{generation.current++;if(audio.current){audio.current.onended=null;audio.current.ontimeupdate=null;audio.current.onseeked=null;audio.current.onloadedmetadata=null;audio.current.onerror=null;audio.current.pause();}window.speechSynthesis?.cancel();};
- const stop=()=>{queue.current?.stop();queue.current=null;bookPaused.current=false;halt();if(audio.current){audio.current.removeAttribute('src');audio.current.load();}publish({status:'idle',mode:'page',playlist:null,position:0,offset:-1,error:null});};
+ const stop=()=>{queue.current?.stop();queue.current=null;bookPaused.current=false;halt();if(audio.current){audio.current.removeAttribute('src');audio.current.load();}publish({status:'idle',mode:'page',playlist:null,position:0,offset:-1,error:null,elapsedSeconds:0,durationSeconds:0});};
  const startTarget=(target:NarrationTarget,rate:number,bookPlayback:BookPlayback|null=null,ended?:()=>void,paused=false)=>{
   halt();const revision=generation.current;
-  publish({target,status:paused?'paused':'playing',mode:bookPlayback?'book':'page',playlist:bookPlayback,error:null,rate,position:0,offset:-1,approximate:Boolean(target.audioUrl&&(!target.audioCues?.length||target.audioCueMode==='PARTIAL'))});
+  publish({target,status:paused?'paused':'playing',mode:bookPlayback?'book':'page',playlist:bookPlayback,error:null,rate,position:0,offset:-1,elapsedSeconds:0,durationSeconds:0,approximate:Boolean(target.audioUrl&&(!target.audioCues?.length||target.audioCueMode==='PARTIAL'))});
   const fail=(error?:unknown)=>{const name=(error as {name?:string})?.name;if(name==='AbortError'&&current.current.status==='paused')return;if(generation.current===revision)publish({status:'paused',offset:-1,error:name==='NotAllowedError'?'برای ادامهٔ صدا، دکمهٔ پخش را بزن.':'پخش این ویس انجام نشد؛ دوباره پخش کن یا ویس بعدی را انتخاب کن.'});};
   if(target.audioUrl){
    // Keep one media element across tracks so the user's playback permission and
    // speed survive automatic page changes, including on mobile browsers.
    const player=audio.current||new Audio();audio.current=player;player.src=target.audioUrl;player.defaultPlaybackRate=rate;player.playbackRate=rate;
    player.onended=()=>{if(generation.current!==revision)return;if(ended)ended();else publish({status:'idle',position:100,offset:-1});};
-   const sync=()=>{if(Number.isFinite(player.duration)&&player.duration>0&&generation.current===revision){const fraction=player.currentTime/player.duration;publish({position:fraction*100,offset:target.audioCues?.length?cueOffset(target.audioCues,player.currentTime):Math.floor(fraction*target.content.length)});}};
+   const sync=()=>{if(Number.isFinite(player.duration)&&player.duration>0&&generation.current===revision){const fraction=player.currentTime/player.duration;publish({position:fraction*100,elapsedSeconds:player.currentTime,durationSeconds:player.duration,offset:target.audioCues?.length?cueOffset(target.audioCues,player.currentTime):Math.floor(fraction*target.content.length)});}};
    player.ontimeupdate=sync;player.onseeked=sync;player.onloadedmetadata=()=>{player.playbackRate=current.current.rate;sync();};player.onerror=()=>fail();if(!paused)void player.play().catch(fail);return;
   }
   if(!('speechSynthesis'in window)){publish({status:'idle',error:'این مرورگر خواندن متن با صدا را پشتیبانی نمی‌کند.'});return;}
@@ -41,7 +41,7 @@ function useNarrationState(){
   stop();publish({target:null});const pages=recordedPages(book.pages||[]);if(!pages.length){publish({error:'این کتاب هنوز ویس ضبط‌شده ندارد.'});return;}
   const playback=new BookAudioQueue<NarrationTarget>(pages,{
    load:async number=>{const {page}=await api.library.page(book.id,number),url=mediaUrl(page.audioUrl);return url?{bookId:book.id,number,title:book.title,content:page.content,language:book.language,audioUrl:url,audioCues:page.audioCues,audioCueMode:page.audioCueMode,page}:null;},
-   loading:(index,total)=>{halt();publish({status:bookPaused.current?'paused':'loading',mode:'book',playlist:{bookId:book.id,index,total,completed:false},error:null,offset:-1,position:0});},
+   loading:(index,total)=>{halt();publish({status:bookPaused.current?'paused':'loading',mode:'book',playlist:{bookId:book.id,index,total,completed:false},error:null,offset:-1,position:0,elapsedSeconds:0,durationSeconds:0});},
    play:(target,index,total)=>{startTarget(target,current.current.rate,{bookId:book.id,index,total,completed:false},()=>{if(queue.current===playback)void playback.next();},bookPaused.current);},
    complete:played=>{halt();publish({status:'idle',position:100,offset:-1,playlist:{bookId:book.id,index:Math.max(0,pages.length-1),total:pages.length,completed:true},error:played?null:'ویس قابل پخشی در این کتاب در دسترس نیست.'});},
    error:(_error,number)=>{halt();publish({status:'paused',error:`دریافت ویس صفحهٔ ${number.toLocaleString('fa-IR')} انجام نشد؛ دوباره پخش کن یا ویس بعدی را بزن.`});}
