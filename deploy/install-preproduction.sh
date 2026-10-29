@@ -58,6 +58,8 @@ runuser -u bonbook -- env NPM_CONFIG_CACHE="$root/shared/npm-cache" NODE_ENV=dev
     cd "$1"
     npm ci --prefix client --no-audit --no-fund
     npm ci --prefix server --no-audit --no-fund
+    # Do not rely on dependency postinstall discovering a schema from the repository root.
+    node server/node_modules/prisma/build/index.js generate --schema server/prisma/schema.prisma
     npm run test:demo --prefix client
     npm test --prefix server
     python3 -m unittest discover -s server/speech -p test_alignment.py
