@@ -8,7 +8,8 @@ import {AuthRequest} from '../middleware/auth';
 import {HttpError} from '../lib/httpError';
 import {positiveId} from './libraryController';
 import {normalizePersian} from '../services/searchService';
-import {decodePageText,parseNumberedTexts,planTextChanges,textChangeSummary,textPageHash,TextChange} from '../services/pageTextImport';
+import {decodePageText,parseNumberedTexts,planTextChanges,planTextFilterChanges,textChangeSummary,textPageHash,TextChange} from '../services/pageTextImport';
+import {bookTextFilters,filterNarrationText,textFilterKey,textFilterSignature,validateTextFilters} from '../services/textFilters';
 
 const summarize=(job:any,includeItems=true)=>({id:job.id,bookId:job.bookId,sourceNames:JSON.parse(job.sourceNames),pageOffset:job.pageOffset,status:job.status,createdAt:job.createdAt,appliedAt:job.appliedAt,...(includeItems?{items:(JSON.parse(job.items) as TextChange[]).map(textChangeSummary)}:{})});
 async function requireBook(bookId:number,tx:any=prisma){const book=await tx.libraryBook.findUnique({where:{id:bookId}});if(!book||book.status==='TRASH')throw new HttpError(404,'کتاب در دسترس نیست.');return book;}
@@ -44,8 +45,8 @@ export async function previewPageTexts(req:AuthRequest,res:Response,next:NextFun
    const raw=path.basename(file.originalname),decoded=/^[\x00-\xff]*$/.test(raw)?Buffer.from(raw,'latin1').toString('utf8'):raw;
    sources.push({name:(decoded.includes('\ufffd')?raw:decoded).slice(0,200),text:decodePageText(await fs.readFile(file.path))});
   }
-  const parsed=parseNumberedTexts(sources),pages=await prisma.libraryPage.findMany({where:{bookId,number:{in:parsed.map(p=>p.number+offset)}}});
-  const items=JSON.stringify(planTextChanges(parsed,pages,offset));if(Buffer.byteLength(items)>24*1024*1024)throw new HttpError(400,'مجموع متن‌های قبل و بعد زیاد است؛ فایل را به چند بخش تقسیم کنید.');
+  const phrases=await bookTextFilters(prisma,bookId),signature=textFilterSignature(phrases),parsed=parseNumberedTexts(sources,phrases),pages=await prisma.libraryPage.findMany({where:{bookId,number:{in:parsed.map(p=>p.number+offset)}}});
+  const items=JSON.stringify(planTextChanges(parsed,pages,offset).map(item=>({...item,filterSignature:signature})));if(Buffer.byteLength(items)>24*1024*1024)throw new HttpError(400,'مجموع متن‌های قبل و بعد زیاد است؛ فایل را به چند بخش تقسیم کنید.');
   const job=await prisma.bookTextImport.create({data:{id:crypto.randomUUID(),bookId,sourceNames:JSON.stringify(sources.map(f=>f.name)),pageOffset:offset,items,createdById:req.userId!}});
   res.status(201).json({import:summarize(job)});
  }catch(e){next(e);}finally{for(const file of files)await fs.unlink(file.path).catch(()=>{});}
@@ -57,7 +58,7 @@ export async function listPageTexts(req:AuthRequest,res:Response,next:NextFuncti
 }catch(e){next(e);}}
 export async function getPageTexts(req:AuthRequest,res:Response,next:NextFunction){try{
  const job=await importForBook(positiveId(req.params.id),String(req.params.textImportId));
- if(req.params.sourcePage){const item=(JSON.parse(job.items) as TextChange[]).find(p=>p.sourceNumber===positiveId(req.params.sourcePage));if(!item)throw new HttpError(404,'صفحه در فایل متن پیدا نشد.');res.json({item:{...textChangeSummary(item),beforeContent:item.beforeContent,content:item.content,beforeCues:JSON.parse(item.beforeCues),cues:JSON.parse(item.cues)}});return;}
+ if(req.params.sourcePage){const item=(JSON.parse(job.items) as TextChange[]).find(p=>p.sourceNumber===positiveId(req.params.sourcePage));if(!item)throw new HttpError(404,'صفحه در فایل متن پیدا نشد.');const phrases=await bookTextFilters(prisma,job.bookId),content=filterNarrationText(item.content,phrases).content;res.json({item:{...textChangeSummary(item),newLength:content.length,beforeContent:item.beforeContent,content,beforeCues:JSON.parse(item.beforeCues),cues:JSON.parse(item.cues)}});return;}
  res.json({import:summarize(job)});
 }catch(e){next(e);}}
 export async function applyPageTexts(req:AuthRequest,res:Response,next:NextFunction){try{
@@ -67,6 +68,8 @@ export async function applyPageTexts(req:AuthRequest,res:Response,next:NextFunct
   const job=await importForBook(bookId,id,tx);if(job.status!=='PREVIEW')throw new HttpError(409,'این پیش‌نمایش قبلاً ثبت یا بازگردانی شده است.');
   const items=JSON.parse(job.items) as TextChange[],selected=new Set<number>(numbers),changes=items.filter(item=>selected.has(item.sourceNumber));
   if(changes.length!==selected.size||changes.some(item=>!textChangeSummary(item).canApply))throw new HttpError(400,'صفحهٔ خالی، ناموجود یا بدون تغییر قابل جایگزینی نیست.');
+  const phrases=await bookTextFilters(tx,bookId),signature=textFilterSignature(phrases);
+  if(changes.some(item=>(item.filterSignature&&item.filterSignature!==signature)||filterNarrationText(item.content,phrases).removedCount))throw new HttpError(409,'فیلتر متن تغییر کرده یا این پیش‌نمایش قدیمی شامل عبارت فیلترشده است؛ دوباره پیش‌نمایش بگیرید.');
   const pages=await currentPages(tx,changes);
   for(const item of changes){const page=pages.get(item.pageId!);if(!page||textPageHash(page)!==item.beforeHash)throw new HttpError(409,`صفحهٔ ${item.number} پس از پیش‌نمایش تغییر کرده است؛ دوباره پیش‌نمایش بگیرید. هیچ متنی ثبت نشد.`);}
   await writeTextChanges(tx,changes,pages);for(const item of changes)item.applied=true;
@@ -80,10 +83,26 @@ export async function undoPageTexts(req:AuthRequest,res:Response,next:NextFuncti
  const result=await prisma.$transaction(async tx=>{
   const job=await importForBook(bookId,id,tx);if(job.status!=='APPLIED')throw new HttpError(409,'فقط جایگزینی ثبت‌شده قابل بازگردانی است.');
   const items=JSON.parse(job.items) as TextChange[],changes=items.filter(item=>item.applied);
+  const phrases=await bookTextFilters(tx,bookId);
+  if(changes.some(item=>filterNarrationText(item.beforeContent,phrases).removedCount))throw new HttpError(409,'نسخهٔ قبلی شامل عبارت‌هایی است که اکنون فیلتر کرده‌اید. برای بازگرداندن آن عبارت‌ها، ابتدا فیلتر مربوط را بردارید و ذخیره کنید.');
   const pages=await currentPages(tx,changes);
   for(const item of changes){const page=pages.get(item.pageId!);if(!page||textPageHash(page)!==item.afterHash)throw new HttpError(409,`صفحهٔ ${item.number} بعداً ویرایش شده است؛ بازگردانی دسته‌ای متوقف شد تا ویرایش تازه از بین نرود.`);}
   await writeTextChanges(tx,changes,pages,true);
   const updated=await tx.bookTextImport.update({where:{id},data:{status:'UNDONE'}});await tx.libraryBook.update({where:{id:bookId},data:{updatedAt:new Date()}});
   return {import:summarize(updated),restored:changes.length};
  },{timeout:30000});res.json(result);
+}catch(e){next(e);}}
+
+export async function textFilterSettings(req:AuthRequest,res:Response,next:NextFunction){try{
+ const bookId=positiveId(req.params.id);await requireBook(bookId);
+ if(req.method==='GET'){res.json({phrases:await bookTextFilters(prisma,bookId)});return;}
+ const phrases=validateTextFilters(req.body.phrases);await prisma.siteSetting.upsert({where:{key:textFilterKey(bookId)},create:{key:textFilterKey(bookId),value:JSON.stringify(phrases)},update:{value:JSON.stringify(phrases)}});res.json({phrases});
+}catch(e){next(e);}}
+export async function previewTextFilterCleanup(req:AuthRequest,res:Response,next:NextFunction){try{
+ const bookId=positiveId(req.params.id);await requireBook(bookId);const phrases=await bookTextFilters(prisma,bookId),pages=await prisma.libraryPage.findMany({where:{bookId},orderBy:{number:'asc'}}),changes=planTextFilterChanges(pages,phrases);
+ if(changes.length>2000)throw new HttpError(400,'در هر نوبت حداکثر ۲۰۰۰ صفحه پاک‌سازی کنید.');
+ if(!changes.length){res.json({import:null,removedCount:0});return;}
+ const items=JSON.stringify(changes);if(Buffer.byteLength(items)>24*1024*1024)throw new HttpError(400,'مجموع متن‌ها زیاد است؛ پاک‌سازی را از ورود متن در چند نوبت انجام دهید.');
+ const job=await prisma.bookTextImport.create({data:{id:crypto.randomUUID(),bookId,sourceNames:JSON.stringify(['پاک‌سازی عبارت‌های فیلترشده']),items,createdById:req.userId!}});
+ res.status(201).json({import:summarize(job),removedCount:changes.reduce((sum,item)=>sum+(item.removedCount||0),0)});
 }catch(e){next(e);}}

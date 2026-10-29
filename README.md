@@ -9,6 +9,8 @@ In the book editor, choose **فقط تصویر PDF یا عکس؛ بدون OCR** 
 - Applying changes updates only page content, search text, and narration **character offsets**. Existing page IDs/order, headings, categories, contents, image/document references, audio files, cue timestamps, and reading progress stay intact. Low-similarity pages and uncertain cue mappings require review and are not selected automatically.
 - The previous text and cues are retained in an admin-only revision. Undo restores them as a transaction, provided no later page or audio edits conflict. Both apply and undo reject a stale preview instead of overwriting newer work. Pending speech jobs for changed text are canceled; completed suggestions for older text cannot be applied to the new text.
 
+The **فیلتر عبارت‌های متن** card stores up to 50 literal ignored phrases per book (one per line). The default is `<short pause>`. Prepared text, document imports and manual page saves remove those phrases before they reach the library. Existing content can be cleaned with a guarded preview and the same revision workflow. Character offsets are translated through the removed spans, preserving every audio timestamp. Old previews cannot reintroduce ignored phrases; restoring a revision containing one requires removing that phrase from the active filter first. The original uploaded files and recordings stay unchanged.
+
 A Persian, right-to-left Telegram bookstore built with React, Vite, Express and Prisma (SQLite).
 
 ## Shareable preview

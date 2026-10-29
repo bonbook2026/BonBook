@@ -4,12 +4,13 @@ import {cleanText} from './documentExtraction';
 import {normalizePersian} from './searchService';
 import {validateAudioCues} from './audioCues';
 import {HttpError} from '../lib/httpError';
+import {DEFAULT_TEXT_FILTERS,filterNarrationText,filterTextAndCues,textFilterSignature} from './textFilters';
 
 export type TextFile={name:string;text:string};
-export type NumberedText={number:number;content:string;source:string};
+export type NumberedText={number:number;content:string;source:string;removedCount?:number};
 type Cue={time:number;offset:number};
 type Token={value:string;start:number;end:number};
-export type TextChange={sourceNumber:number;number:number;source:string;pageId:number|null;heading:string;status:'READY'|'REVIEW'|'EMPTY'|'MISSING'|'UNCHANGED';reason:string;similarity:number;cueCount:number;exactCues:number;beforeContent:string;content:string;beforeCues:string;cues:string;beforeMode:string;mode:string;beforeHash:string;afterHash?:string;applied?:boolean};
+export type TextChange={sourceNumber:number;number:number;source:string;pageId:number|null;heading:string;status:'READY'|'REVIEW'|'EMPTY'|'MISSING'|'UNCHANGED';reason:string;similarity:number;cueCount:number;exactCues:number;beforeContent:string;content:string;beforeCues:string;cues:string;beforeMode:string;mode:string;beforeHash:string;afterHash?:string;applied?:boolean;filterSignature?:string;removedCount?:number};
 export const westernDigits=(value:string)=>value.replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
 const pageNumber=(raw:string)=>{const value=Number(westernDigits(raw));if(!Number.isSafeInteger(value)||value<1||value>100000)throw new HttpError(400,'شمارهٔ صفحه باید بین ۱ و ۱۰۰٬۰۰۰ باشد.');return value;};
 
@@ -24,13 +25,13 @@ export function decodePageText(buffer:Buffer){
  if(buffer[0]===254&&buffer[1]===255){const copy=Buffer.from(buffer.subarray(2));if(copy.length%2)throw new HttpError(400,'کدگذاری فایل متنی ناقص است.');copy.swap16();return copy.toString('utf16le');}
  try{return new TextDecoder('utf-8',{fatal:true}).decode(buffer);}catch{return new TextDecoder('windows-1256').decode(buffer);}
 }
-export function parseNumberedTexts(files:TextFile[]):NumberedText[]{
+export function parseNumberedTexts(files:TextFile[],phrases:string[]=DEFAULT_TEXT_FILTERS):NumberedText[]{
  if(!files.length||files.length>2000)throw new HttpError(400,'یک فایل کامل یا حداکثر ۲۰۰۰ فایل متنی صفحه انتخاب کنید.');
  const result:NumberedText[]=[],seen=new Map<number,NumberedText>();
  const add=(number:number,content:string,source:string)=>{
-  const value=cleanText(content);if(value.length>40000)throw new HttpError(400,`متن صفحهٔ ${number} بیش از ۴۰٬۰۰۰ حرف است.`);
+  const filtered=filterNarrationText(cleanText(content),phrases),value=filtered.content;if(value.length>40000)throw new HttpError(400,`متن صفحهٔ ${number} بیش از ۴۰٬۰۰۰ حرف است.`);
   if(seen.has(number))throw new HttpError(400,`شمارهٔ صفحهٔ ${number} تکراری است؛ فایل کامل و فایل‌های همان صفحه را هم‌زمان انتخاب نکنید.`);
-  const item={number,content:value,source};seen.set(number,item);result.push(item);
+  const item={number,content:value,source,removedCount:filtered.removedCount};seen.set(number,item);result.push(item);
   if(result.length>2000)throw new HttpError(400,'در هر نوبت حداکثر ۲۰۰۰ صفحه وارد کنید.');
  };
  for(const file of files){
@@ -89,6 +90,7 @@ export function planTextChanges(parsed:NumberedText[],pages:any[],offset:number)
  return parsed.map(source=>{
   const number=source.number+offset;if(number<1||number>100000)throw new HttpError(400,'اختلاف شماره باعث خروج از محدودهٔ صفحه‌های مجاز شده است.');
   const page=byNumber.get(number),item:TextChange={sourceNumber:source.number,number,source:source.source,pageId:page?.id??null,heading:page?.heading||'',status:'READY',reason:'شمارهٔ صفحه یکسان است؛ فقط متن و جای حروف زیرنویس به‌روز می‌شوند.',similarity:0,cueCount:0,exactCues:0,beforeContent:page?.content||'',content:source.content,beforeCues:page?.audioCues||'[]',cues:page?.audioCues||'[]',beforeMode:page?.audioCueMode||'NONE',mode:page?.audioCueMode||'NONE',beforeHash:page?textPageHash(page):''};
+  item.removedCount=source.removedCount||0;
   if(!page){item.status='MISSING';item.reason='این شماره در کتاب وجود ندارد؛ هیچ صفحه‌ای ساخته یا جابه‌جا نمی‌شود.';return item;}
   if(!source.content.trim()){item.status='EMPTY';item.reason='متن ورودی خالی است؛ متن فعلی پاک نمی‌شود.';return item;}
   if(source.content===page.content){item.status='UNCHANGED';item.similarity=1;item.reason='متن از قبل یکسان است.';return item;}
@@ -102,4 +104,21 @@ export function planTextChanges(parsed:NumberedText[],pages:any[],offset:number)
   return item;
  });
 }
-export function textChangeSummary(item:TextChange){return {sourceNumber:item.sourceNumber,number:item.number,source:item.source,heading:item.heading,status:item.status,reason:item.reason,similarity:item.similarity,cueCount:item.cueCount,exactCues:item.exactCues,oldLength:item.beforeContent.length,newLength:item.content.length,canApply:Boolean(item.afterHash)&&['READY','REVIEW'].includes(item.status),applied:!!item.applied};}
+export function planTextFilterChanges(pages:any[],phrases:string[]):TextChange[]{
+ const result:TextChange[]=[];
+ for(const page of pages){
+  const filtered=filterNarrationText(page.content,phrases);if(!filtered.removedCount)continue;
+  const item=planTextChanges([{number:page.number,content:filtered.content,source:'پاک‌سازی متن فعلی کتاب'}],[page],0)[0];
+  item.removedCount=filtered.removedCount;item.filterSignature=textFilterSignature(phrases);
+  try{
+   const mapped=filterTextAndCues(page.content,page.audioCues,page.audioAssetId,phrases);
+   item.content=mapped.content;item.cues=mapped.cues;item.mode=mapped.approximate?'PARTIAL':page.audioCueMode;item.status='READY';item.similarity=1;item.cueCount=JSON.parse(page.audioCues).length;item.exactCues=mapped.approximate?0:item.cueCount;
+   item.reason=`${filtered.removedCount.toLocaleString('fa-IR')} عبارت فیلترشده حذف می‌شود؛ فایل صوتی و همهٔ زمان‌ها حفظ می‌شوند.`;
+   if(mapped.approximate)item.reason+=' نقطه‌های روی عبارت حذف‌شده به متن باقی‌مانده منتقل می‌شوند.';
+   item.afterHash=textPageHash({...page,content:item.content,audioCues:item.cues,audioCueMode:item.mode});
+  }catch(error){item.status='REVIEW';item.reason=error instanceof Error?error.message:'این صفحه به بازبینی نیاز دارد.';delete item.afterHash;}
+  result.push(item);
+ }
+ return result;
+}
+export function textChangeSummary(item:TextChange){return {sourceNumber:item.sourceNumber,number:item.number,source:item.source,heading:item.heading,status:item.status,reason:item.reason,similarity:item.similarity,cueCount:item.cueCount,exactCues:item.exactCues,oldLength:item.beforeContent.length,newLength:item.content.length,canApply:Boolean(item.afterHash)&&['READY','REVIEW'].includes(item.status),applied:!!item.applied,removedCount:item.removedCount||0};}

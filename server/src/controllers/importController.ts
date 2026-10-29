@@ -9,6 +9,7 @@ import {config} from '../config';
 import {positiveId} from './libraryController';
 import {ImportSource,ocrAvailable,cleanText} from '../services/documentExtraction';
 import {normalizePersian} from '../services/searchService';
+import {bookTextFilters,filterNarrationText} from '../services/textFilters';
 
 const types:Record<string,string>={pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',odt:'application/vnd.oasis.opendocument.text',epub:'application/epub+zip',txt:'text/plain',md:'text/plain',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',tif:'image/tiff',tiff:'image/tiff',bmp:'image/bmp'};
 export const importJson=(job:any)=>({id:job.id,bookId:job.bookId,filename:job.filename,format:job.format,mode:job.mode,status:job.status,totalPages:job.totalPages,completedPages:job.completedPages,warnings:job.warnings,error:job.error,createdAt:job.createdAt});
@@ -55,12 +56,13 @@ export async function getImport(req:AuthRequest,res:Response,next:NextFunction){
 export async function importedPage(req:AuthRequest,res:Response,next:NextFunction){try{
   const importId=String(req.params.importId),number=positiveId(req.params.page),page=await prisma.importedPage.findUnique({where:{importId_number:{importId,number}}});
   if(!page)throw new HttpError(404,'این صفحه هنوز آماده نشده است.');
+  const currentJob=await prisma.bookImport.findUniqueOrThrow({where:{id:importId}}),phrases=await bookTextFilters(prisma,currentJob.bookId);
   if(req.method==='PUT'){
     const job=await prisma.bookImport.findUnique({where:{id:importId}});if(job?.status!=='REVIEW')throw new HttpError(409,'پس از پایان پردازش می‌توانید متن را اصلاح کنید.');
     if(typeof req.body.content!=='string'||req.body.content.length>40000||typeof req.body.heading!=='string'||req.body.heading.length>200)throw new HttpError(400,'متن صفحه معتبر نیست.');
-    const updated=await prisma.importedPage.update({where:{id:page.id},data:{content:cleanText(req.body.content),heading:req.body.heading.trim()}});res.json({page:updated});return;
+    const updated=await prisma.importedPage.update({where:{id:page.id},data:{content:filterNarrationText(cleanText(req.body.content),phrases).content,heading:filterNarrationText(req.body.heading.trim(),phrases).content}});res.json({page:updated});return;
   }
-  res.json({page:{...page,sourceUrl:page.sourceAssetId?`/api/media/${page.sourceAssetId}`:null}});
+  res.json({page:{...page,content:filterNarrationText(page.content,phrases).content,heading:filterNarrationText(page.heading,phrases).content,sourceUrl:page.sourceAssetId?`/api/media/${page.sourceAssetId}`:null}});
 }catch(e){next(e);}}
 export async function applyImport(req:AuthRequest,res:Response,next:NextFunction){try{
   const id=String(req.params.importId),start=positiveId(req.body.startPage||1);
@@ -70,7 +72,8 @@ export async function applyImport(req:AuthRequest,res:Response,next:NextFunction
     if(job.status!=='REVIEW'||job.book.status==='TRASH')throw new HttpError(409,'پردازش هنوز آمادهٔ ثبت نیست.');
     if(start+job.pages.length>100001)throw new HttpError(400,'شمارهٔ صفحه‌ها بیش از حد بزرگ است.');
     if(await tx.libraryPage.count({where:{bookId:job.bookId,number:{gte:start,lt:start+job.pages.length}}}))throw new HttpError(409,'این شمارهٔ صفحه‌ها قبلاً استفاده شده‌اند. شمارهٔ شروع را تغییر دهید.');
-    for(const page of job.pages)await tx.libraryPage.create({data:{bookId:job.bookId,number:start+page.number-1,heading:page.heading,content:page.content,keywords:'',searchText:normalizePersian(page.heading+' '+page.content),sourceAssetId:page.sourceAssetId,sourcePageNumber:page.sourcePageNumber}});
+    const phrases=await bookTextFilters(tx,job.bookId);
+    for(const page of job.pages){const content=filterNarrationText(page.content,phrases).content,heading=filterNarrationText(page.heading,phrases).content;await tx.libraryPage.create({data:{bookId:job.bookId,number:start+page.number-1,heading,content,keywords:'',searchText:normalizePersian(heading+' '+content),sourceAssetId:page.sourceAssetId,sourcePageNumber:page.sourcePageNumber}});}
     await tx.bookImport.update({where:{id},data:{status:'APPLIED'}});await tx.libraryBook.update({where:{id:job.bookId},data:{updatedAt:new Date(),isSample:false}});
     return {bookId:job.bookId,added:job.pages.length};
   },{timeout:30_000});res.json(result);

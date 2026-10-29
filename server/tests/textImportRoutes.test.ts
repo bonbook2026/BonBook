@@ -93,4 +93,31 @@ describe('Prepared text preview, guarded replacement and undo',()=>{
   expect(await prisma.libraryPage.count({where:{bookId:target.id,content:'جهان یکی است.'}})).toBe(180);
   const writers=await Promise.allSettled(Array.from({length:8},()=>prisma.$transaction(async(tx:any)=>{await tx.libraryBook.update({where:{id:target.id},data:{updatedAt:new Date()}});return tx.libraryPage.count({where:{bookId:target.id}});})));expect(writers.every(result=>result.status==='fulfilled')).toBe(true);
  });
+ it('saves per-book literal filters, previews existing-page cleanup, and preserves all voice timing',async()=>{
+  const raw='خط اول. <short pause> خط دوم. (نفس) خط سوم.',target=await prisma.libraryBook.create({data:{title:'فیلتر متن گوینده',pages:{create:{number:60,heading:'عنوان محفوظ',content:raw,audioAssetId:audioId,audioCues:JSON.stringify([{time:0,offset:0},{time:9,offset:raw.indexOf('خط دوم')},{time:18,offset:raw.indexOf('خط سوم')}]),audioCueMode:'AUTO'}}}});
+  const route=`/api/admin/books/${target.id}/text-filters`;
+  expect((await call(route,undefined,readerToken)).status).toBe(403);expect((await(await call(route)).json()).phrases).toEqual(['<short pause>']);
+  const saved=await fetch(base+route,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({phrases:['<short pause>','(نفس)']})});expect(saved.status).toBe(200);
+  const {import:job,removedCount}=await(await call(route+'/preview',{})).json();expect(removedCount).toBe(2);expect(job.items[0].status).toBe('READY');
+  const before=await prisma.libraryPage.findFirst({where:{bookId:target.id}});expect(before.content).toBe(raw);
+  const applied=await call(`/api/admin/books/${target.id}/text-imports/${job.id}/apply`,{pages:[60]});expect(applied.status).toBe(200);
+  const after=await prisma.libraryPage.findUnique({where:{id:before.id}});expect(after.content).toBe('خط اول. خط دوم. خط سوم.');expect(after.audioAssetId).toBe(audioId);expect(after.audioCueMode).toBe('AUTO');expect(JSON.parse(after.audioCues).map((c:any)=>c.time)).toEqual([0,9,18]);
+  expect((await call(`/api/admin/books/${target.id}/text-imports/${job.id}/undo`,{})).status).toBe(409);
+  await fetch(base+route,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({phrases:[]})});
+  expect((await call(`/api/admin/books/${target.id}/text-imports/${job.id}/undo`,{})).status).toBe(200);expect((await prisma.libraryPage.findUnique({where:{id:before.id}})).audioCues).toBe(before.audioCues);
+  expect((await(await call(`/api/admin/books/${book.id}/text-filters`)).json()).phrases).toEqual(['<short pause>']);
+ });
+ it('filters prepared and manually saved text and rejects stale filter previews or legacy unfiltered proposals',async()=>{
+  const target=await prisma.libraryBook.create({data:{title:'ورود متن پاک',pages:{create:{number:1,content:'الف ب پایان'}}}}),route=`/api/admin/books/${target.id}/text-filters`;
+  const {import:job}=await(await preview('=== Page 1 ===\nالف <short pause> ب تازه پایان','full.txt',target.id)).json();
+  const detail=await(await call(`/api/admin/books/${target.id}/text-imports/${job.id}/pages/1`)).json();expect(detail.item.content).not.toContain('<short pause>');
+  await fetch(base+route,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({phrases:['<short pause>','تازه']})});
+  expect((await call(`/api/admin/books/${target.id}/text-imports/${job.id}/apply`,{pages:[1]})).status).toBe(409);
+  const body={heading:'عنوان',content:'الف <short pause> ب تازه پایان',keywords:'',audioAssetId:null,audioCues:[]};
+  const saved=await fetch(`${base}/api/admin/books/${target.id}/pages/1`,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body)});expect(saved.status).toBe(200);expect((await saved.json()).page.content).toBe('الف ب پایان');
+  const {planTextChanges}=await import('../src/services/pageTextImport'),page=await prisma.libraryPage.findFirst({where:{bookId:target.id}}),items=planTextChanges([{number:1,content:'الف <short pause> ب یک پایان',source:'old.txt'}],[page],0);
+  const old=await prisma.bookTextImport.create({data:{id:crypto.randomUUID(),bookId:target.id,sourceNames:'["old.txt"]',items:JSON.stringify(items),createdById:1}});
+  expect((await call(`/api/admin/books/${target.id}/text-imports/${old.id}/apply`,{pages:[1]})).status).toBe(409);
+  expect((await(await call(`/api/admin/books/${target.id}/text-imports/${old.id}/pages/1`)).json()).item.content).not.toContain('<short pause>');
+ });
 });
