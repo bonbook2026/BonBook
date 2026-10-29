@@ -55,3 +55,107 @@
 @media(max-width:520px){.reader-journey .rx-immersive-stage{padding-top:111px;padding-bottom:12px}.reader-journey .journey-sky{left:20px;right:20px;height:94px}.reader-journey .journey-phase{font-size:8px;top:0}.reader-journey .journey-orb{width:56px;height:56px}.reader-journey .orb-page{font-size:7px;padding:4px 6px}.reader-journey .journey-sky-ends{font-size:7px;left:3%;right:3%;bottom:-5px}.reader-journey .journey-perch{left:20%;width:54px;height:49px;margin-top:-47px}.reader-journey .journey-perch.incoming-perch{right:20%;left:auto}}
 @media(max-height:540px) and (min-width:600px){.reader-journey .rx-immersive-stage{padding-top:79px;padding-bottom:10px}.reader-journey .journey-sky{height:66px;left:35px;right:35px}.reader-journey .journey-phase{top:-1px;font-size:8px}.reader-journey .journey-orb{width:43px;height:43px}.reader-journey .orb-page{font-size:7px;top:calc(100% + 5px)}.reader-journey .journey-sky-ends{display:none}.reader-journey .journey-perch{width:47px;height:43px;margin-top:-41px}}
 @media(prefers-reduced-motion:reduce){.reader-journey :is(.journey-orb,.journey-perch){transition:none!important}.reader-journey .orb-glow,.reader-journey .orb-touch-ring,.reader-journey .companion-wing{animation:none!important}}
+
+/* Mode choices remain separate from the narration controls. */
+.reader-journey .journey-mode-picker{position:relative;flex-shrink:0}
+.rx-zoom.reader-journey .journey-mode-trigger{width:auto;min-width:82px;padding-inline:9px;display:flex;align-items:center;gap:6px;font-size:10px;white-space:nowrap}
+.reader-journey .journey-mode-trigger>svg{width:22px;height:22px;flex-shrink:0}
+.reader-journey .journey-mode-chevron{font-size:12px;opacity:.6}
+.reader-journey .cycle-sun{stroke:#c3a15f;fill:#d9b25b35}.reader-journey .cycle-moon{fill:currentColor;fill-opacity:.15}.reader-journey .cycle-star{opacity:.7}
+.reader-journey .journey-mode-panel{position:absolute;left:0;top:calc(100% + 10px);width:300px;padding:14px;border:1px solid var(--rx-line);border-radius:17px;background:var(--rx-surface);color:var(--rx-ink);box-shadow:0 18px 55px #07142336;z-index:30;direction:rtl;text-align:right}
+.reader-journey .journey-mode-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.reader-journey .journey-mode-heading strong{font-size:12px;font-weight:600}
+.rx-zoom.reader-journey .journey-mode-heading .rx-icon-button{width:25px;height:25px}
+.reader-journey .journey-mode-heading svg{width:15px;height:15px}
+.reader-journey .journey-mode-option{display:flex;align-items:center;gap:12px;width:100%;padding:12px 10px;border:0;border-radius:11px;background:transparent;color:var(--rx-ink);text-align:right;margin:4px 0}
+.reader-journey .journey-mode-option>svg{width:25px;height:25px;flex-shrink:0}
+.reader-journey .journey-mode-option>span:nth-child(2){display:grid;gap:4px;flex:1}
+.reader-journey .journey-mode-option strong{font-size:12px;font-weight:600}.reader-journey .journey-mode-option small{font-size:10px;color:var(--rx-muted)}
+.reader-journey .journey-mode-option[aria-pressed=true]{background:var(--rx-soft);color:var(--rx-accent)}
+.reader-journey .journey-mode-check{width:15px;font-size:13px}
+.reader-journey .journey-direction{display:flex;align-items:center;gap:8px;width:100%;padding:12px 10px;margin-top:10px;border:1px solid var(--rx-line);border-radius:10px;background:transparent;color:var(--rx-ink);font-size:11px}
+.reader-journey .journey-direction small{font-size:9px;margin-inline-start:auto;color:var(--rx-muted)}.reader-journey .journey-direction>svg{width:16px;height:16px}
+.reader-journey .journey-mode-panel>p{font-size:10px;line-height:1.8;color:var(--rx-muted);margin:12px 4px 2px}
+.reader-journey .journey-mode-panel{max-height:calc(100dvh - 110px);overflow:auto;overscroll-behavior:contain}
+.reader-journey .orb-moon{overflow:hidden}.reader-journey .orb-moon>.moon-phase-shadow{position:absolute;inset:0;width:100%;height:100%;fill:#0b1428;stroke:none;pointer-events:none}
+.reader-journey .journey-perch.owl-pair-perch{width:136px;right:6%}
+.reader-journey .journey-owl-pair{display:flex;gap:6px;width:100%;height:100%;align-items:end}
+.reader-journey .journey-owl-pair>.rx-book-companion,.reader-journey .journey-owl-pair>.pair-gray{display:block;width:64px;height:64px;flex:0 0 64px}
+.reader-journey .journey-perch.cat-perch{width:112px;height:92px;margin-top:-87px;right:8%}
+
+/* The cat arrives on foot, settles, naps, and responds to every tap. */
+.reader-journey .reader-cat{border-radius:35%;overflow:visible}
+.reader-cat [data-cat-art]{opacity:0}
+.reader-cat.cat-walking [data-cat-art=walking],.reader-cat.cat-sitting [data-cat-art=sitting],.reader-cat.cat-affection [data-cat-art=sitting],.reader-cat.cat-sleeping [data-cat-art=sleeping]{opacity:1}
+.reader-cat .cat-leg{transform-box:fill-box;transform-origin:50% 0;animation:rj-cat-step .5s ease-in-out infinite alternate}.reader-cat .cat-leg-1,.reader-cat .cat-leg-3{animation-delay:-.5s}
+.reader-cat .cat-tail,.reader-cat .cat-walk-tail{transform-box:fill-box;transform-origin:0 70%;animation:rj-cat-tail 4s ease-in-out infinite alternate}
+.reader-cat .cat-eyes{transform-box:fill-box;transform-origin:center;animation:rj-cat-blink 7s ease-in-out infinite}
+.reader-cat .cat-offer-paw{opacity:0}.reader-cat .cat-hearts{opacity:0}.reader-cat .cat-rub{transform-box:fill-box;transform-origin:50% 100%}
+.reader-cat.cat-affection .cat-rub{animation:rj-cat-rub 2.4s ease-in-out both;animation-play-state:running!important}
+.reader-cat.cat-affection .cat-offer-paw{opacity:1;animation:rj-cat-paw .65s ease-in-out 3 alternate;transform-origin:76px 94px;animation-play-state:running!important}
+.reader-cat.cat-affection .cat-hearts{opacity:1}.reader-cat.cat-affection .cat-hearts>path{animation:rj-cat-heart 1.8s ease-out both;animation-play-state:running!important}.reader-cat.cat-affection .cat-hearts>path:nth-child(2){animation-delay:.2s}.reader-cat.cat-affection .cat-hearts>path:nth-child(3){animation-delay:.5s}
+.reader-cat .cat-sleep-breath{transform-box:fill-box;transform-origin:50% 100%;animation:rj-cat-breathe 3s ease-in-out infinite alternate}
+.reader-cat .cat-sleep-z{animation:rj-cat-z 3s ease-in-out infinite}
+.reader-cat.cat-still *{animation-play-state:paused}
+@keyframes rj-cat-step{from{transform:rotate(-12deg)}to{transform:rotate(12deg)}}
+@keyframes rj-cat-tail{to{transform:rotate(12deg)}}
+@keyframes rj-cat-blink{0%,42%,46%,91%,95%,100%{transform:scaleY(1)}44%,93%{transform:scaleY(.15)}}
+@keyframes rj-cat-rub{0%,100%{transform:translateX(0) rotate(0)}20%{transform:translateX(-5px) rotate(-9deg)}45%{transform:translateX(5px) rotate(8deg)}70%{transform:translateX(-4px) rotate(-6deg)}}
+@keyframes rj-cat-paw{to{transform:rotate(-25deg)}}
+@keyframes rj-cat-heart{0%{opacity:0;transform:translateY(5px) scale(.8)}25%{opacity:.9}100%{opacity:0;transform:translateY(-22px) scale(1.1)}}
+@keyframes rj-cat-breathe{to{transform:scaleY(1.035)}}
+@keyframes rj-cat-z{0%,100%{opacity:.2;transform:translateY(0)}50%{opacity:.75;transform:translateY(-5px)}}
+
+/* Insects cross in front of the page; controls and subtitles stay above them. */
+.reader-journey .journey-ambient-animals{position:absolute;inset:22% 72px 25%;z-index:2;pointer-events:none;overflow:hidden}
+.reader-journey .journey-ambient-animal{position:absolute;width:44px;height:44px;border:0;padding:4px;border-radius:50%;background:transparent;pointer-events:auto;touch-action:manipulation;-webkit-touch-callout:none;cursor:pointer;color:#66866f;top:var(--ambient-y);left:var(--ambient-x)}
+.reader-journey .journey-ambient-animal:focus-visible{outline:1px solid var(--rx-accent);outline-offset:2px}
+.reader-journey .ambient-body,.reader-journey .ambient-body>svg{position:relative;display:block;width:100%;height:100%;overflow:visible}
+.reader-journey .ambient-butterfly{left:0;animation:rj-butterfly-cross 27s var(--ambient-delay) linear infinite;filter:drop-shadow(0 3px 3px #36523b24)}
+.reader-journey .ambient-butterfly.ambient-1{animation-duration:35s;color:#aa885e}
+.reader-journey .ambient-butterfly-wing{fill:#9bb698;transform-box:fill-box;transform-origin:center;animation:rj-butterfly-wing .4s ease-in-out infinite alternate}
+.reader-journey .ambient-butterfly.ambient-1 .ambient-butterfly-wing{fill:#c1a27d}.reader-journey .butterfly-left{transform-origin:100% 50%}.reader-journey .butterfly-right{transform-origin:0 50%;animation-delay:-.2s}.reader-journey .ambient-butterfly-body{stroke:#6c8167}
+.reader-journey .ambient-bird{left:0;animation:rj-small-bird-cross 39s var(--ambient-delay) linear infinite;opacity:.7}.reader-journey .ambient-bird.ambient-1{animation-duration:48s}.reader-journey .ambient-bird-wings{transform-origin:50% 65%;animation:rj-small-bird-wing 1s ease-in-out infinite alternate}
+.reader-journey .ambient-firefly{animation:rj-firefly-flight 12s var(--ambient-delay) ease-in-out infinite alternate}
+.reader-journey .firefly-halo{position:absolute;left:50%;top:65%;width:64px;height:64px;margin:-32px;border-radius:50%;background:radial-gradient(circle,#e6ff995e,#d9f4a619 35%,transparent 70%);pointer-events:none;animation:rj-firefly-glow 4s var(--ambient-delay) ease-in-out infinite alternate}
+.reader-journey .firefly-wing{fill:#a8cbb54d;transform-box:fill-box;animation:rj-firefly-wing .15s ease-in-out infinite alternate}.reader-journey .wing-left{transform-origin:100% 100%}.reader-journey .wing-right{transform-origin:0 100%;animation-delay:-.15s}
+.reader-journey .firefly-light{fill:#e2f5a0;filter:drop-shadow(0 0 5px #deff9f);animation:rj-firefly-glow 4s var(--ambient-delay) ease-in-out infinite alternate}
+.reader-journey .ambient-reacting{animation:rj-ambient-pet 1.2s ease-in-out both!important}.reader-journey .ambient-firefly .ambient-reacting{animation:rj-firefly-pet 1.3s ease-in-out both!important}.reader-journey .ambient-reacting .firefly-halo{animation:none!important;transform:scale(1.45);opacity:1}
+.reader-journey .ambient-reacting :is(.ambient-butterfly-wing,.ambient-bird-wings,.firefly-wing){animation-play-state:running!important;animation-duration:.15s}
+.reader-journey .ambient-still{animation:none!important;left:var(--ambient-x)}.reader-journey .ambient-still .ambient-body *{animation-play-state:paused}.reader-journey .ambient-still .ambient-reacting{animation-play-state:running!important}
+.reader-journey .journey-ambient-animal:hover,.reader-journey .journey-ambient-animal:active,.reader-journey .journey-ambient-animal:focus-visible,.reader-journey .journey-ambient-animal.ambient-petted{animation-play-state:paused!important}
+@keyframes rj-butterfly-cross{0%{transform:translateX(-12vw) translateY(0) rotate(-12deg)}35%{transform:translateX(35vw) translateY(-28px) rotate(8deg)}65%{transform:translateX(72vw) translateY(24px) rotate(-6deg)}100%{transform:translateX(112vw) translateY(-8px) rotate(12deg)}}
+@keyframes rj-butterfly-wing{to{transform:scaleX(.35)}}
+@keyframes rj-small-bird-cross{from{transform:translateX(-12vw) translateY(12px)}to{transform:translateX(112vw) translateY(-40px)}}
+@keyframes rj-small-bird-wing{to{transform:scaleY(.45)}}
+@keyframes rj-firefly-flight{0%{transform:translate(-15px,8px) rotate(-9deg)}40%{transform:translate(28px,-34px) rotate(12deg)}100%{transform:translate(-20px,25px) rotate(-5deg)}}
+@keyframes rj-firefly-glow{from{opacity:.35}to{opacity:1}}
+@keyframes rj-firefly-wing{to{transform:scaleX(.3)}}
+@keyframes rj-ambient-pet{0%,100%{transform:scale(1) rotate(0)}25%{transform:scale(1.2) rotate(-16deg) translateY(-8px)}60%{transform:scale(1.1) rotate(14deg) translateY(-4px)}}
+@keyframes rj-firefly-pet{0%,100%{filter:brightness(1);transform:scale(1)}40%{filter:brightness(1.7);transform:scale(1.3) translateY(-10px)}}
+@media(max-width:520px){.rx-zoom.reader-journey .journey-mode-trigger{min-width:78px;font-size:9px;padding-inline:6px;gap:4px}.reader-journey .journey-mode-panel{position:fixed;left:12px;right:12px;top:111px;width:auto}.reader-journey .journey-perch.owl-pair-perch{width:108px;height:50px;right:8%}.reader-journey .journey-owl-pair{gap:4px}.reader-journey .journey-owl-pair>.rx-book-companion,.reader-journey .journey-owl-pair>.pair-gray{width:52px;height:50px;flex-basis:52px}.reader-journey .journey-perch.cat-perch{width:89px;height:74px;margin-top:-71px;right:10%}.reader-journey .journey-ambient-animals{inset:25% 0 25%}.reader-journey .journey-ambient-animal{padding:7px}.reader-journey .firefly-halo{width:55px;height:55px;margin:-27.5px}}
+@media(prefers-reduced-motion:reduce){.reader-journey .reader-cat *,.reader-journey .journey-ambient-animal,.reader-journey .journey-ambient-animal *{animation:none!important;transition:none!important}.reader-journey .ambient-butterfly,.reader-journey .ambient-bird{left:var(--ambient-x)}}
+@media(max-width:520px){.reader-journey .journey-ambient-animals{inset-inline:38px}}
+@media(max-height:540px) and (min-width:600px){.reader-journey .journey-perch.cat-perch{width:80px;height:66px;margin-top:-63px}.reader-journey .journey-perch.owl-pair-perch{width:102px;height:48px;margin-top:-46px}.reader-journey .journey-owl-pair>.rx-book-companion,.reader-journey .journey-owl-pair>.pair-gray{width:48px;height:48px;flex-basis:48px}}
+
+/* The textured moon and sun sit behind the companions, close to the book edge. */
+.reader-journey .rx-immersive-canvas>.journey-sky{top:-116px;left:12%;right:12%;height:112px;z-index:0}
+.reader-journey[data-journey-mode=night] .rx-immersive-canvas>.journey-sky{right:7%}
+.reader-journey[data-journey-mode=day] .rx-immersive-canvas>.journey-sky{top:-154px;right:18%}
+.reader-journey .rx-immersive-canvas>.rx-book-stage{position:relative;z-index:1}
+.reader-journey .journey-orb{width:128px;height:128px}
+.reader-journey .journey-phase,.reader-journey .journey-sky-ends{display:none}
+.reader-journey .journey-arc{opacity:0}.reader-journey .is-dragging .journey-arc{opacity:.3}
+.reader-journey .orb-moon{background:transparent;box-shadow:none;overflow:visible}
+.reader-journey .reader-moon-canvas{position:absolute;inset:-6%;display:block;width:112%;height:112%;pointer-events:none;filter:drop-shadow(0 0 14px #dce9ff19)}
+.reader-journey .orb-glow{background:radial-gradient(circle,color-mix(in srgb,var(--j-halo) 28%,transparent),transparent 70%);opacity:.8}
+.reader-journey .orb-page{top:auto;bottom:calc(100% + 8px);opacity:0;transition:opacity .2s}
+.reader-journey .journey-orb:hover .orb-page,.reader-journey .journey-orb:focus-visible .orb-page,.reader-journey .is-dragging .orb-page,.reader-journey .journey-orb[aria-busy=true] .orb-page{opacity:1}
+.reader-journey .journey-owl-pair>.owl-white-slot{display:block;width:54px;height:52px;flex:0 0 54px;align-self:end;position:relative;z-index:3}
+.reader-journey .owl-arrival{display:block;width:100%;height:100%;animation:rj-owl-entrance 1.25s cubic-bezier(.2,.7,.2,1) both}
+.reader-journey .owl-arrival .companion-wing{animation:rj-flap .2s ease-in-out 6 alternate}
+.reader-journey .journey-still .owl-arrival{animation:none}.reader-journey .journey-still .owl-arrival .companion-wing{animation-play-state:paused}
+@keyframes rj-owl-entrance{0%{transform:translate(45vw,-100px) rotate(-10deg)}65%{transform:translate(18px,-20px) rotate(6deg)}85%{transform:translate(-3px,-4px) rotate(-2deg)}100%{transform:translate(0,0) rotate(0)}}
+@media(max-width:520px){.reader-journey .rx-immersive-canvas>.journey-sky{top:-107px;left:23%;right:23%;height:94px}.reader-journey[data-journey-mode=night] .rx-immersive-canvas>.journey-sky{right:9%}.reader-journey[data-journey-mode=day] .rx-immersive-canvas>.journey-sky{top:-143px;right:18%}.reader-journey .journey-orb{width:96px;height:96px}.reader-journey .journey-owl-pair>.owl-white-slot{width:44px;height:43px;flex-basis:44px}}
+@media(max-height:540px) and (min-width:600px){.reader-journey .rx-immersive-canvas>.journey-sky{top:-90px;height:74px}.reader-journey[data-journey-mode=day] .rx-immersive-canvas>.journey-sky{top:-112px}.reader-journey .journey-orb{width:92px;height:92px}.reader-journey .journey-owl-pair>.owl-white-slot{width:41px;height:40px;flex-basis:41px}}
+@media(prefers-reduced-motion:reduce){.reader-journey .owl-arrival{animation:none!important}}

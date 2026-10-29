@@ -1,0 +1,14 @@
+import {CSSProperties,useState} from 'react';
+
+function AmbientAnimal({kind,index,moving}:{kind:'butterfly'|'firefly'|'bird';index:number;moving:boolean}){
+ const [reaction,setReaction]=useState(0),name=kind==='butterfly'?'پروانه':kind==='firefly'?'کرم شب‌تاب':'پرندهٔ کوچک';
+ const slot=index+(kind==='bird'?2:0);
+ return <button type="button" className={`journey-ambient-animal ambient-${kind} ambient-${index}${moving?'':' ambient-still'}${reaction?' ambient-petted':''}`} aria-label={`بازی با ${name} ${(index+1).toLocaleString('fa-IR')}`} title={kind==='firefly'?'لمس کن تا بدرخشم':'لمس کن تا بال بزنم'} style={{'--ambient-delay':`${index*-7}s`,'--ambient-y':`${8+(slot*17+12)%76}%`,'--ambient-x':`${7+(slot*23+12)%86}%`} as CSSProperties} onPointerDown={event=>{event.stopPropagation();event.currentTarget.setPointerCapture(event.pointerId);}} onPointerUp={event=>{event.stopPropagation();if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}} onClick={event=>{event.stopPropagation();setReaction(value=>value+1);}}>
+  <span key={reaction} className={`ambient-body${reaction?' ambient-reacting':''}`} onAnimationEnd={event=>{if(event.target===event.currentTarget)setReaction(0);}}>
+   {kind==='firefly'?<><span className="firefly-halo"/><svg viewBox="0 0 40 44" aria-hidden="true"><path className="firefly-wing wing-left" d="M19 25C-3 22 5 3 14 12Z"/><path className="firefly-wing wing-right" d="M21 25C43 22 35 3 26 12Z"/><path d="M18 15q2-5 4 0v11h-4Z" fill="#668b82"/><ellipse className="firefly-light" cx="20" cy="30" rx="5" ry="6"/><path d="m19 14-4-5m6 5 4-5" fill="none" stroke="#adc995" strokeWidth="1.2"/></svg></>:kind==='bird'?<svg viewBox="0 0 60 40" aria-hidden="true"><path className="ambient-bird-wings" d="M5 25Q18 8 30 25Q42 8 55 25" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>:<svg viewBox="0 0 60 46" aria-hidden="true"><g className="ambient-butterfly-wing butterfly-left"><path d="M30 27C-1-6-8 13 5 27c-9 22 14 17 25 0Z"/></g><g className="ambient-butterfly-wing butterfly-right"><path d="M30 27C61-6 68 13 55 27c9 22-14 17-25 0Z"/></g><path className="ambient-butterfly-body" d="M30 16v23m0-20-5-8m5 8 5-8" fill="none" strokeWidth="1.8"/></svg>}
+  </span>
+ </button>;
+}
+export function ReaderAmbientAnimals({night,moving}:{night:boolean;moving:boolean}){
+ return <div className="journey-ambient-animals" aria-label="همراهان کوچک کتاب">{night?Array.from({length:5},(_,index)=><AmbientAnimal key={`firefly-${index}`} kind="firefly" index={index} moving={moving}/>):<>{[0,1].map(index=><AmbientAnimal key={`butterfly-${index}`} kind="butterfly" index={index} moving={moving}/>)}{[0,1].map(index=><AmbientAnimal key={`bird-${index}`} kind="bird" index={index} moving={moving}/>)}</>}</div>;
+}

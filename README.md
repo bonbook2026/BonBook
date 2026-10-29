@@ -71,8 +71,16 @@ Do not commit real credentials or local databases. `.env.example` contains confi
 Fullscreen reading includes a sky journey driven by the real page order and the
 current recording's playback percentage. The opening and closing two pages hold
 their sky state. The site's selected day/night theme determines the starting
-direction; the fullscreen control can invert it. Sparrows and owls exchange along
-the journey. Dragging the sun/moon pauses audio and previews locally, then loads
+direction; the fullscreen control can invert it. The device remembers one of
+three modes: cycling day/night, night-only (half moon to full moon), or day-only
+(dawn to warm sunset). The sun/moon stays behind the book-edge pets. In night
+mode the smaller white owl arrives before the gray owl, including a stagger after
+a direct jump to the end. In day mode a cat walks in, sits, naps and responds to
+petting. Butterflies, birds, fireflies and perched pets respond to touch. Ambient
+motion can be paused and respects reduced-motion settings. The lunar texture is
+an AI-generated transparent image at `client/public/images/moon-natural-v2.png`,
+with its generation prompt beside it; spherical canvas lighting creates the soft
+half-to-full phases. Dragging the sun/moon pauses audio and previews locally, then loads
 and plays the selected position once on release. Recorded-page gaps advance to
 the next recording at its beginning; if none remains, the chosen page opens
 without invented audio. Canceling a drag resumes the prior playback state.

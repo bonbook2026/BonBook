@@ -1,11 +1,16 @@
 const clamp=(value:number,min=0,max=1)=>Math.min(max,Math.max(min,value));
+export type JourneyMode='cycle'|'night'|'day';
+export const JOURNEY_MODE_KEY='bonbook_reader_journey_mode';
+export const parseJourneyMode=(value:unknown):JourneyMode=>value==='night'||value==='day'?value:'cycle';
 export const smoothStep=(from:number,to:number,value:number)=>{const t=clamp((value-from)/(to-from));return t*t*(3-2*t);};
 /** Position is pages read (including the fractional progress of the current page). */
-export function readingJourney(position:number,total:number,startNight=false){
+export function readingJourney(position:number,total:number,startNight=false,mode:JourneyMode='cycle'){
   const count=Math.max(1,total),padding=Math.min(2,Math.max(0,(count-1)/2));
   const progress=clamp((clamp(position,0,count)-padding)/Math.max(1,count-padding*2));
-  const transition=smoothStep(0,1,progress),night=startNight?1-transition:transition;
-  return {progress,night,dusk:Math.pow(Math.sin(Math.PI*progress),3),page:Math.min(count,Math.floor(clamp(position,0,count))+1),x:8+84*progress,y:67-32*Math.sin(Math.PI*progress),departure:smoothStep(.25,.56,progress),arrival:smoothStep(.58,.82,progress)};
+  const transition=smoothStep(0,1,progress),night=mode==='night'?1:mode==='day'?0:startNight?1-transition:transition;
+  const dusk=mode==='night'?0:mode==='day'?Math.max((1-smoothStep(0,.3,progress))*.45,smoothStep(.55,1,progress)*.78):Math.pow(Math.sin(Math.PI*progress),3);
+  const moonOpacity=mode==='night'?1:mode==='day'?0:smoothStep(.55,.9,night);
+  return {mode,progress,night,dusk,moonOpacity,sunOpacity:1-moonOpacity,moonIllumination:mode==='night'?.5+.5*transition:1,page:Math.min(count,Math.floor(clamp(position,0,count))+1),x:8+84*progress,y:(mode==='day'?75:67)-(mode==='day'?38:32)*Math.sin(Math.PI*progress),departure:smoothStep(.25,.56,progress),arrival:smoothStep(.58,.82,progress)};
 }
 /** Dragging is always physically left to right, regardless of the Persian UI direction. */
 export function journeySeek(progress:number,total:number){

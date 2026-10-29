@@ -1,22 +1,23 @@
 import {useState} from 'react';
 /** Companions stay above the page edge, so they never cover book text. */
-export function ReaderCompanion({night,moving}:{night:boolean;moving:boolean}){
+export function ReaderCompanion({night,moving,owlTone='gray',label}:{night:boolean;moving:boolean;owlTone?:'gray'|'white';label?:string}){
  const [reaction,setReaction]=useState(0);
- return <button type="button" className={`rx-book-companion ${night?'companion-owl':'companion-sparrow'}${moving?'':' companion-still'}`} aria-label={night?'بازی با جغد':'بازی با گنجشک'} title="بزن تا بال بزنم" onClick={()=>{if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches)setReaction(value=>value+1);}}>
+ const white=owlTone==='white';
+ return <button type="button" className={`rx-book-companion ${night?'companion-owl':'companion-sparrow'}${night&&white?' companion-white-owl':''}${moving?'':' companion-still'}`} aria-label={label||(night?'بازی با جغد':'بازی با گنجشک')} title="بزن تا بال بزنم" onClick={event=>{event.stopPropagation();if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches)setReaction(value=>value+1);}}>
  <svg viewBox="0 0 120 108" fill="none" aria-hidden="true"><g key={reaction} className={reaction?'companion-reaction':undefined} onAnimationEnd={event=>{if(event.target===event.currentTarget)setReaction(0);}}>
  <ellipse cx="59" cy="104" rx="29" ry="3" fill={night?'#07101c':'#476146'} opacity=".16"/>
  {night?<>
- <path d="m49 81 10 18 12-18" fill="#555c72"/>
- <g className="companion-body"><ellipse cx="59" cy="68" rx="29" ry="31" fill="#6b7188"/>
- <ellipse cx="59" cy="71" rx="18" ry="25" fill="#c8c5be"/>
+ <path d="m49 81 10 18 12-18" fill={white?'#b0c2cf':'#555c72'}/>
+ <g className="companion-body"><ellipse cx="59" cy="68" rx={white?33:29} ry={white?30:31} fill={white?'#e8eef1':'#6b7188'}/>
+ <ellipse cx="59" cy="71" rx={white?21:18} ry="25" fill={white?'#fff9e9':'#c8c5be'}/>
  {[0,1,2].map(row=><g key={row} stroke="#9a9b9f" strokeWidth="1.5" strokeLinecap="round"><path d={`m49 ${62+row*9} 3 2 3-2m8 0 3 2 3-2`}/></g>)}
- <path className="companion-wing" d="M36 47c-12 9-12 30 1 39 7-15 10-30-1-39Z" fill="#4d536d"/>
- <path d="M82 47c12 9 12 30-1 39-7-15-10-30 1-39Z" fill="#4d536d"/>
+ <path className="companion-wing" d="M36 47c-12 9-12 30 1 39 7-15 10-30-1-39Z" fill={white?'#c9d8e1':'#4d536d'}/>
+ <path d="M82 47c12 9 12 30-1 39-7-15-10-30 1-39Z" fill={white?'#c9d8e1':'#4d536d'}/>
  <path d="m32 60 6 6m-8 4 6 5m48-15-6 6m8 4-6 5" stroke="#87889b" strokeWidth="1.4" strokeLinecap="round"/>
  </g>
- <g className="companion-head"><path d="M28 30 27 6l20 12c8-3 18-3 26 0L93 6l-3 24c8 31-11 42-31 42S20 61 28 30Z" fill="#757b93"/>
- <path d="m30 13 4 18 11-9Zm57 0-4 18-11-9Z" fill="#a3a5b4"/>
- <path d="M59 28c-13-17-33-5-30 13 1 15 14 21 30 26 16-5 29-11 30-26 3-18-17-30-30-13Z" fill="#e4dfd0"/>
+ <g className="companion-head"><path d="M28 30 27 6l20 12c8-3 18-3 26 0L93 6l-3 24c8 31-11 42-31 42S20 61 28 30Z" fill={white?'#f0f4f4':'#757b93'}/>
+ <path d="m30 13 4 18 11-9Zm57 0-4 18-11-9Z" fill={white?'#d3dfe5':'#a3a5b4'}/>
+ <path d="M59 28c-13-17-33-5-30 13 1 15 14 21 30 26 16-5 29-11 30-26 3-18-17-30-30-13Z" fill={white?'#fffdf3':'#e4dfd0'}/>
  <g className="companion-eyes"><ellipse cx="44" cy="40" rx="10" ry="12" fill="#a4956c"/><ellipse cx="74" cy="40" rx="10" ry="12" fill="#a4956c"/>
  <ellipse cx="44" cy="40" rx="7.5" ry="9" fill="#e4bf6c"/><ellipse cx="74" cy="40" rx="7.5" ry="9" fill="#e4bf6c"/>
  <ellipse cx="45" cy="40" rx="4" ry="7" fill="#263044"/><ellipse cx="73" cy="40" rx="4" ry="7" fill="#263044"/>
