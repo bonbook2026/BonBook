@@ -64,11 +64,26 @@ runuser -u bonbook -- env NPM_CONFIG_CACHE="$root/shared/npm-cache" NODE_ENV=dev
     npm test --prefix server
     python3 -m unittest discover -s server/speech -p test_alignment.py
     NODE_ENV=production npm run build:preproduction
-    # WAL lets reading, narration polling and admin imports share the SQLite file.
+' _ "$release"
+# Schema tooling needs exclusive database access, including when WAL readers are
+# otherwise idle. Build and test first, then pause only our three processes.
+recover_bonbook_services() {
+    result=$?
+    if [[ "$result" -ne 0 && -e "$root/current" ]]; then
+        systemctl restart bonbook-preproduction.service bonbook-import-worker.service bonbook-speech-worker.service || true
+    fi
+}
+trap recover_bonbook_services EXIT
+for bonbook_unit in bonbook-preproduction.service bonbook-import-worker.service bonbook-speech-worker.service; do
+    if systemctl cat "$bonbook_unit" >/dev/null 2>&1; then systemctl stop "$bonbook_unit"; fi
+done
+runuser -u bonbook -- env NPM_CONFIG_CACHE="$root/shared/npm-cache" NODE_ENV=production DATABASE_URL=file:/srv/bonbook-preproduction/shared/data/bonbook.db NODE_OPTIONS=--max-old-space-size=512 bash -c '
+    set -euo pipefail
+    cd "$1/server"
+    ./node_modules/.bin/prisma migrate deploy
+    node dist/seedLibrary.js
+    # Enable WAL after the schema engine closes its exclusive connection.
     python3 -c "import sqlite3; c=sqlite3.connect(\"/srv/bonbook-preproduction/shared/data/bonbook.db\",timeout=15); mode=c.execute(\"PRAGMA journal_mode=WAL\").fetchone()[0]; c.close(); assert mode.lower()==\"wal\""
-    cd server
-    DATABASE_URL=file:/srv/bonbook-preproduction/shared/data/bonbook.db ./node_modules/.bin/prisma migrate deploy
-    DATABASE_URL=file:/srv/bonbook-preproduction/shared/data/bonbook.db node dist/seedLibrary.js
 ' _ "$release"
 printf '%s\n' "$release_id" > "$release/.release-sha"
 chown -R root:bonbook "$release"
@@ -110,3 +125,4 @@ systemctl enable bonbook-import-worker.service
 systemctl restart bonbook-import-worker.service
 systemctl enable bonbook-speech-worker.service
 systemctl restart bonbook-speech-worker.service
+trap - EXIT
