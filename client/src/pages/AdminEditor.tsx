@@ -5,6 +5,7 @@ import {CoverEditor} from '../components/CoverEditor';
 import {BatchAudioPanel} from '../components/BatchAudioPanel';
 import {AutomaticAlignment} from '../components/AutomaticAlignment';
 import {BookImportPanel} from '../components/BookImportPanel';
+import {BookTextImportPanel} from '../components/BookTextImportPanel';
 import {AdminPageArtwork} from '../components/BookPageImage';
 import {AudioCueEditor} from '../components/AudioCueEditor';
 import {ContentsEditor} from '../components/ContentsEditor';
@@ -28,6 +29,7 @@ export function AdminBook(){
   const nextPage=Math.max(0,...pages.map(p=>p.number))+1,filteredPages=pages.filter(p=>!pageQuery||String(p.number).includes(foldedQuery)||p.heading.includes(pageQuery));
   return <AdminShell><Link to="/admin" className="reader-topline">بازگشت به کتاب‌ها</Link>{error&&<p className="notice error" role="alert">{error}</p>}{message&&<p className="notice success" role="status">{message}</p>}{!book?<div className="reading-loading">در حال باز کردن کتاب…</div>:book.status==='TRASH'?<section className="reading-empty"><h2>این کتاب در سطل زباله است</h2><p>متن، جلد و فایل‌هایش حفظ شده‌اند.</p><button className="reader-button primary" onClick={()=>void run(async()=>{await api.admin.state(id,'restore');await load();})}>بازیابی کتاب به‌صورت مخفی</button></section>:<>
   <BookImportPanel bookId={id} nextPage={nextPage} onApplied={()=>void load().catch(e=>setError(e.message))}/>
+  <BookTextImportPanel key={'text-'+id} bookId={id} editorDirty={dirty} onApplied={refreshAudio}/>
   <BatchAudioPanel bookId={id} onAttached={()=>void refreshAudio().catch(e=>setError(e.message))}/>
   <CoverEditor book={book} onChange={data=>setBook(b=>b?{...b,...data}:b)} onUpload={file=>upload('cover',file)} busy={busy}/>
   <ContentsEditor bookId={id} pages={pages} onChoose={number=>{void choose(number);document.getElementById('page-editor')?.scrollIntoView({behavior:'smooth'});}}/>

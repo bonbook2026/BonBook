@@ -215,6 +215,7 @@ model LibraryBook {
   imports         BookImport[]
   contents        BookContents[]
   audioBatches    AudioBatch[]
+  textImports     BookTextImport[]
 
   @@index([status, categoryId])
   @@map("library_books")
@@ -368,6 +369,23 @@ model ImportedPage {
 
   @@unique([importId, number])
   @@map("imported_pages")
+}
+
+// Text-only revisions retain the previous text and timing for a guarded undo.
+model BookTextImport {
+  id          String      @id
+  bookId      Int         @map("book_id")
+  book        LibraryBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  sourceNames String      @map("source_names")
+  pageOffset  Int         @default(0) @map("page_offset")
+  status      String      @default("PREVIEW")
+  items       String
+  createdById Int         @map("created_by_id")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  appliedAt   DateTime?   @map("applied_at")
+
+  @@index([bookId, createdAt])
+  @@map("book_text_imports")
 }
 
 model ReadingProgress {

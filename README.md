@@ -1,5 +1,14 @@
 # BonBook
 
+### Prepared page text without repeating OCR
+
+In the book editor, choose **فقط تصویر PDF یا عکس؛ بدون OCR** to import original page images and page numbers without reading their text. Add those pages, then use **متن آماده، بدون OCR دوباره** to attach prepared TXT/MD text.
+
+- A full text file uses standalone markers such as `=== Page 11 ===` or `صفحه ۱۱`. A folder can contain `page-0011.txt`, `۱۱.txt`, etc. Persian and Arabic digits are supported; file order never determines the target page.
+- The preview shows page matches, blank/missing/unchanged pages, and narration cue mapping. A page offset can account for a difference between file and book numbering. Duplicate numbers and unnumbered source text are rejected.
+- Applying changes updates only page content, search text, and narration **character offsets**. Existing page IDs/order, headings, categories, contents, image/document references, audio files, cue timestamps, and reading progress stay intact. Low-similarity pages and uncertain cue mappings require review and are not selected automatically.
+- The previous text and cues are retained in an admin-only revision. Undo restores them as a transaction, provided no later page or audio edits conflict. Both apply and undo reject a stale preview instead of overwriting newer work. Pending speech jobs for changed text are canceled; completed suggestions for older text cannot be applied to the new text.
+
 A Persian, right-to-left Telegram bookstore built with React, Vite, Express and Prisma (SQLite).
 
 ## Shareable preview

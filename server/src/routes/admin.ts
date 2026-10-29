@@ -18,6 +18,7 @@ import {siteFeatures} from '../controllers/siteFeaturesController';
 import {libraryHero} from '../controllers/libraryHeroController';
 import {contentSecurity,revokeContentSession} from '../controllers/contentSecurityController';
 import {privateContentHeaders} from '../middleware/contentSecurity';
+import {previewPageTexts,listPageTexts,getPageTexts,applyPageTexts,undoPageTexts} from '../controllers/textImportController';
 const router = Router();
 router.use(privateContentHeaders,authMiddleware, requireAdmin);
 router.get('/content-security',requireOwner,contentSecurity);
@@ -67,6 +68,18 @@ router.delete('/imports/:importId',getImport);
 router.get('/imports/:importId/pages/:page',importedPage);
 router.put('/imports/:importId/pages/:page',importedPage);
 router.post('/imports/:importId/apply',applyImport);
+router.get('/books/:id/text-imports',listPageTexts);
+router.get('/books/:id/text-imports/:textImportId',getPageTexts);
+router.get('/books/:id/text-imports/:textImportId/pages/:sourcePage',getPageTexts);
+router.post('/books/:id/text-imports/:textImportId/apply',applyPageTexts);
+router.post('/books/:id/text-imports/:textImportId/undo',undoPageTexts);
+router.post('/books/:id/text-imports',(req,res,next)=>{
+ if(Number(req.get('content-length'))>10*1024*1024){next(new HttpError(413,'مجموع متن‌های ورودی باید حداکثر ۸ مگابایت باشد.'));return;}
+ const directory=path.resolve(config.mediaDirectory,'../text-incoming');fs.mkdirSync(directory,{recursive:true,mode:0o700});
+ multer({storage:multer.diskStorage({destination:directory,filename:(_req,_file,done)=>done(null,crypto.randomUUID()+'.upload')}),limits:{fileSize:8*1024*1024,files:2000,fields:1,fieldSize:32,parts:2001}}).array('files',2000)(req,res,error=>{
+  if(error){for(const file of (req.files||[]) as Express.Multer.File[])fs.unlink(file.path,()=>{});next(new HttpError(400,'بارگذاری متن انجام نشد؛ حداکثر ۲۰۰۰ فایل و مجموع ۸ مگابایت انتخاب کنید.'));return;}next();
+ });
+},previewPageTexts);
 router.post('/media/import/:id',(req,res,next)=>{
   if(Number(req.get('content-length'))>31*1024*1024){next(new HttpError(413,'مجموع فایل‌ها باید حداکثر ۳۰ مگابایت باشد.'));return;}
   const directory=path.resolve(config.mediaDirectory,'../import-incoming');fs.mkdirSync(directory,{recursive:true,mode:0o700});

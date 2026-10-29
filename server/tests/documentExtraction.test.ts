@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import JSZip from 'jszip';
+import {execFileSync} from 'child_process';
 import {extractDocument,paginateText,needsOcr,cleanText,ImportSource} from '../src/services/documentExtraction';
 describe('Document extraction',()=>{
   let directory:string;
@@ -21,5 +22,16 @@ describe('Document extraction',()=>{
   });
   it('detects a corrupt Persian text layer and preserves ordinary text',()=>{
     expect(needsOcr('این یک متن فارسی خوانا برای کتاب است. '.repeat(20))).toBe(false);expect(needsOcr('انسیییییان'.repeat(30))).toBe(true);expect(needsOcr('')).toBe(true);expect(paginateText('')).toHaveLength(0);
+  });
+  it('imports original PDF page references without OCR or extracting text',async()=>{
+    const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 400] >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 400] >>'];
+    let pdf='%PDF-1.4\n',offsets=[0];for(let i=0;i<objects.length;i++){offsets.push(Buffer.byteLength(pdf));pdf+=`${i+1} 0 obj\n${objects[i]}\nendobj\n`;}const xref=Buffer.byteLength(pdf);pdf+=`xref\n0 5\n0000000000 65535 f \n${offsets.slice(1).map(offset=>String(offset).padStart(10,'0')+' 00000 n ').join('\n')}\ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+    await fs.writeFile(path.join(directory,'image-only.pdf'),pdf);
+    // PDF.js is native ESM. Exercise its real loader outside Vitest's VM sandbox.
+    const script=`const {extractDocument}=require(${JSON.stringify(path.resolve(__dirname,'../src/services/documentExtraction.ts'))});(async()=>{const pages=[];let count=0;await extractDocument({id:'original-pdf',filename:'image-only.pdf',name:'image-only.pdf',format:'pdf',mimeType:'application/pdf'},${JSON.stringify(directory)},'images',async total=>{count=total;},async page=>{pages.push(page);},async()=>false);console.log(JSON.stringify({count,pages}));})().catch(error=>{console.error(error);process.exitCode=1;});`;
+    const output=execFileSync(process.execPath,['-r',require.resolve('ts-node/register/transpile-only'),'-e',script],{encoding:'utf8',env:{...process.env,TS_NODE_PROJECT:path.resolve(__dirname,'../tsconfig.json')},timeout:20000});
+    const result=JSON.parse(output.trim().split('\n').at(-1)!);
+    expect(result.count).toBe(2);expect(result.pages.map((p:any)=>[p.number,p.content,p.sourceAssetId,p.sourcePageNumber])).toEqual([[1,'','original-pdf',1],[2,'','original-pdf',2]]);
+    const images:any[]=[];await extractDocument({id:'scan',filename:'not-even-decoded.png',name:'scan.png',format:'png',mimeType:'image/png'},directory,'images',async()=>{},async page=>{images.push(page);},async()=>false);expect(images[0].content).toBe('');expect(images[0].sourceAssetId).toBe('scan');
   });
 });

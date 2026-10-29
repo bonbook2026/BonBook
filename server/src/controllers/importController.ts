@@ -20,7 +20,8 @@ export async function uploadDocument(req:AuthRequest,res:Response,next:NextFunct
     if(!book||book.status==='TRASH')throw new HttpError(404,'کتاب در دسترس نیست.');
     if(!files.length||files.reduce((sum,file)=>sum+file.size,0)>30*1024*1024)throw new HttpError(400,'یک فایل کتاب یا مجموعه عکس با مجموع حجم حداکثر ۳۰ مگابایت انتخاب کنید.');
     if(await prisma.bookImport.findFirst({where:{bookId,status:{in:['QUEUED','PROCESSING']}}}))throw new HttpError(409,'پردازش دیگری برای این کتاب در جریان است.');
-    const mode=String(req.body.mode||'auto');if(!['auto','text','ocr'].includes(mode))throw new HttpError(400,'روش استخراج معتبر نیست.');
+    const mode=String(req.body.mode||'auto');if(!['auto','text','ocr','images'].includes(mode))throw new HttpError(400,'روش استخراج معتبر نیست.');
+    if(mode==='images'&&files.some(file=>!/\.(pdf|jpe?g|png|webp|tiff?|bmp)$/i.test(file.originalname)))throw new HttpError(400,'ورود بدون OCR مخصوص PDF یا عکس صفحه‌ها است.');
     await fs.mkdir(config.mediaDirectory,{recursive:true,mode:0o700});
     const sources:ImportSource[]=[];
     for(const file of files){

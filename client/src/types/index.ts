@@ -69,6 +69,8 @@ export type PageSummary=Pick<LibraryPage,'id'|'number'|'heading'>;
 export interface BookCategory{id:number;name:string;parentId:number|null;path:string;bookCount:number}
 export interface BookImport{id:string;bookId:number;filename:string;format:string;mode:string;status:'QUEUED'|'PROCESSING'|'REVIEW'|'APPLIED'|'FAILED'|'CANCELED';totalPages:number;completedPages:number;warnings:string;error:string|null;createdAt:string}
 export interface ImportedPage{number:number;heading:string;content:string;sourceUrl:string|null;sourcePageNumber:number|null}
+export interface TextImportItem{sourceNumber:number;number:number;source:string;heading:string;status:'READY'|'REVIEW'|'EMPTY'|'MISSING'|'UNCHANGED';reason:string;similarity:number;cueCount:number;exactCues:number;oldLength:number;newLength:number;canApply:boolean;applied:boolean;beforeContent?:string;content?:string;beforeCues?:AudioCue[];cues?:AudioCue[]}
+export interface BookTextImport{id:string;bookId:number;sourceNames:string[];pageOffset:number;status:'PREVIEW'|'APPLIED'|'UNDONE';createdAt:string;appliedAt:string|null;items:TextImportItem[]}
 export interface SearchResult extends LibraryPage {
   bookTitle: string; author: string; language: string; excerpt: string; matchedTerms: string[];
 }

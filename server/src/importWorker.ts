@@ -24,8 +24,8 @@ async function run(){
         await prisma.$transaction([prisma.importedPage.upsert({where:{importId_number:{importId:job.id,number:page.number}},create:{...page,importId:job.id},update:page}),prisma.bookImport.update({where:{id:job.id},data:{completedPages:page.number}})]);count=page.number;
       };
       if(sources.length>1||sources[0].mimeType.startsWith('image/')){
-        await prisma.bookImport.update({where:{id:job.id},data:{totalPages:sources.length,warnings:'متن عکس‌ها با OCR استخراج شده است؛ پیش از انتشار بازبینی کنید.'}});
-        for(let i=job.completedPages;i<sources.length;i++){if(await canceled())break;await extractDocument(sources[i],config.mediaDirectory,'ocr',async()=>{},page=>save({...page,number:i+1}),canceled);}
+        await prisma.bookImport.update({where:{id:job.id},data:{totalPages:sources.length,warnings:job.mode==='images'?'فقط تصویرها وارد می‌شوند؛ متن آماده را جداگانه تطبیق دهید.':'متن عکس‌ها با OCR استخراج شده است؛ پیش از انتشار بازبینی کنید.'}});
+        for(let i=job.completedPages;i<sources.length;i++){if(await canceled())break;await extractDocument(sources[i],config.mediaDirectory,job.mode==='images'?'images':'ocr',async()=>{},page=>save({...page,number:i+1}),canceled);}
       }else await extractDocument(sources[0],config.mediaDirectory,job.mode,async(totalPages,warnings)=>{await prisma.bookImport.update({where:{id:job.id},data:{totalPages,warnings}});},save,canceled,job.completedPages);
       if(await canceled())await prisma.bookImport.update({where:{id:job.id},data:{status:'CANCELED'}});
       else await prisma.bookImport.update({where:{id:job.id},data:{status:'REVIEW',completedPages:count}});

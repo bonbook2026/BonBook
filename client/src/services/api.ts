@@ -1,4 +1,4 @@
-import { AuthResponse, BookInfo, Order, User, LibraryBook, LibraryPage, SearchResult, AdminGrant,PageSummary,BookCategory,BookImport,ImportedPage,ContentsEntry,AudioBatch,AudioAlignment } from '../types';
+import { AuthResponse, BookInfo, Order, User, LibraryBook, LibraryPage, SearchResult, AdminGrant,PageSummary,BookCategory,BookImport,ImportedPage,ContentsEntry,AudioBatch,AudioAlignment,BookTextImport,TextImportItem } from '../types';
 import { IS_DEMO, IS_PREPRODUCTION } from '../config/demo';
 import {SiteFeatures,SiteSection,LibraryHeroSettings} from '../types/siteSettings';
 
@@ -176,6 +176,16 @@ export const api = {
     deleteCategory:(id:number)=>request<{ok:boolean}>(`/admin/categories/${id}`,{method:'DELETE'}),
     importOptions:()=>request<{ocr:boolean;maxBytes:number;formats:string[]}>('/admin/imports/options'),
     imports:(id:number)=>request<{imports:BookImport[]}>(`/admin/books/${id}/imports`),
+    textImports:(id:number)=>request<{imports:BookTextImport[]}>(`/admin/books/${id}/text-imports`),
+    textImport:(bookId:number,id:string)=>request<{import:BookTextImport}>(`/admin/books/${bookId}/text-imports/${id}`),
+    textImportPage:(bookId:number,id:string,sourcePage:number)=>request<{item:TextImportItem}>(`/admin/books/${bookId}/text-imports/${id}/pages/${sourcePage}`),
+    previewTextImport:async(bookId:number,files:File[],pageOffset:number)=>{
+      const body=new FormData();body.append('pageOffset',String(pageOffset));files.forEach(file=>body.append('files',file,file.name));
+      const response=await fetch(`${BASE_URL}/admin/books/${bookId}/text-imports`,{method:'POST',headers:authenticationHeaders(),body});
+      const result=await response.json().catch(()=>({error:'پیش‌نمایش متن انجام نشد. مجموع فایل‌ها باید حداکثر ۸ مگابایت باشد.'}));if(!response.ok)throw new ApiError(result.error,response.status);return result as {import:BookTextImport};
+    },
+    applyTextImport:(bookId:number,id:string,pages:number[])=>request<{import:BookTextImport;updated:number}>(`/admin/books/${bookId}/text-imports/${id}/apply`,{method:'POST',body:JSON.stringify({pages})}),
+    undoTextImport:(bookId:number,id:string)=>request<{import:BookTextImport;restored:number}>(`/admin/books/${bookId}/text-imports/${id}/undo`,{method:'POST'}),
     import:(id:string)=>request<{import:BookImport}>(`/admin/imports/${id}`),
     importPage:(id:string,page:number)=>request<{page:ImportedPage}>(`/admin/imports/${id}/pages/${page}`),
     editImportPage:(id:string,page:ImportedPage)=>request<{page:ImportedPage}>(`/admin/imports/${id}/pages/${page.number}`,{method:'PUT',body:JSON.stringify({heading:page.heading,content:page.content})}),

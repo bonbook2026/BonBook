@@ -86,6 +86,7 @@ async function documentText(file:string,format:string){
 export async function extractDocument(source:ImportSource,directory:string,mode:string,onTotal:(total:number,warning:string)=>Promise<void>,onPage:(page:ExtractedPage)=>Promise<void>,isCanceled:()=>Promise<boolean>,skipPages=0){
   const file=path.join(directory,source.filename),heading=(text:string)=>text.split('\n').find(line=>line.trim().length>3)?.trim().slice(0,150)||'';
   if(['jpg','jpeg','png','webp','tif','tiff','bmp'].includes(source.format)){
+    if(mode==='images'){await onPage({number:1,heading:'',content:'',sourceAssetId:source.id,sourcePageNumber:null});return;}
     const content=await recognize(file,source.language?.startsWith('en')?'eng':'fas');await onPage({number:1,heading:heading(content),content,sourceAssetId:source.id,sourcePageNumber:null});return;
   }
   if(source.format!=='pdf'){
@@ -100,6 +101,11 @@ export async function extractDocument(source:ImportSource,directory:string,mode:
   let temp='';
   try{
     const pdf=await task.promise;if(pdf.numPages>2000)throw new Error('تعداد صفحه‌های فایل از ۲۰۰۰ بیشتر است. فایل را به چند بخش تقسیم کنید.');
+    if(mode==='images'){
+      await onTotal(pdf.numPages,'فقط تصویر اصلی صفحه‌ها وارد شد؛ OCR و استخراج متن اجرا نشده است. متن آماده را از بخش تطبیق متن وارد کنید.');
+      for(let number=skipPages+1;number<=pdf.numPages;number++){if(await isCanceled())return;await onPage({number,heading:'',content:'',sourceAssetId:source.id,sourcePageNumber:number});}
+      return;
+    }
     const readPage=async(number:number)=>{
       const page=await pdf.getPage(number),{items}=await page.getTextContent();
       const lines=new Map<number,{str:string;x:number;dir:string}[]>();
