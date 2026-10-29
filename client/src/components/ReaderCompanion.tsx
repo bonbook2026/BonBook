@@ -1,7 +1,9 @@
-/** Decorative companions stay above the page edge, so they never cover book text. */
+import {useState} from 'react';
+/** Companions stay above the page edge, so they never cover book text. */
 export function ReaderCompanion({night,moving}:{night:boolean;moving:boolean}){
- return <div className={`rx-book-companion ${night?'companion-owl':'companion-sparrow'}${moving?'':' companion-still'}`} aria-hidden="true">
- <svg viewBox="0 0 120 108" fill="none">
+ const [reaction,setReaction]=useState(0);
+ return <button type="button" className={`rx-book-companion ${night?'companion-owl':'companion-sparrow'}${moving?'':' companion-still'}`} aria-label={night?'بازی با جغد':'بازی با گنجشک'} title="بزن تا بال بزنم" onClick={()=>{if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches)setReaction(value=>value+1);}}>
+ <svg viewBox="0 0 120 108" fill="none" aria-hidden="true"><g key={reaction} className={reaction?'companion-reaction':undefined} onAnimationEnd={event=>{if(event.target===event.currentTarget)setReaction(0);}}>
  <ellipse cx="59" cy="104" rx="29" ry="3" fill={night?'#07101c':'#476146'} opacity=".16"/>
  {night?<>
  <path d="m49 81 10 18 12-18" fill="#555c72"/>
@@ -37,5 +39,5 @@ export function ReaderCompanion({night,moving}:{night:boolean;moving:boolean}){
  <path d="m79 54 8 4-10 5Z" fill="#584a3c"/>
  <g className="companion-eyes"><circle cx="84" cy="41" r="4" fill="#302f28"/><circle cx="85" cy="40" r="1.3" fill="#fffdf5"/></g></g>
  </g>}
- </svg></div>;
+ </g></svg></button>;
 }
