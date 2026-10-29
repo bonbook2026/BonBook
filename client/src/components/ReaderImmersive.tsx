@@ -6,6 +6,7 @@ import {ReadAlongText} from './ReadAlongText';
 import {ReaderPlayback,ReaderPlaybackState} from './ReaderPlayback';
 import {ReaderAtmosphere} from './ReaderAtmosphere';
 import {ReaderCompanion} from './ReaderCompanion';
+import {ReaderAccountStamp} from './ReaderProtection';
 interface ImmersiveProps{
  open:boolean;onClose:()=>void;book:LibraryBook|null;page:LibraryPage|null;visualPage:LibraryPage|null;facing:LibraryPage|null;hasFacing:boolean;
  number:number;heading:string;night:boolean;onTheme:()=>void;single:boolean;onSingle:()=>void;
@@ -34,6 +35,6 @@ export function ReaderImmersive(props:ImmersiveProps){
  <button className="rx-page-arrow rx-next" disabled={next===undefined} onClick={()=>next!==undefined&&onGo(next)} aria-label="صفحهٔ بعد در تصویر کامل"><Icon name="chevron"/></button>
  {text&&<aside className="rx-immersive-transcript" aria-label="متن کامل همراه صدا"><div><h3>متن همراه صدا</h3><button className="rx-icon-button" aria-label="بستن متن کامل" onClick={()=>setText(false)}><Icon name="close"/></button></div>{page?.content&&page.visualMode!=='IMAGE'?<ReadAlongText key={`${book.id}-${number}`} text={page.content} offset={offset} follow terms={terms} contained/>:<p>متن قابل خواندن برای این صفحه ثبت نشده است.</p>}</aside>}</main>
  {captions&&page&&<section className="rx-immersive-caption" aria-label="زیرنویس همراه صدا زیر کتاب"><span className="rx-caption-page">صفحهٔ {number.toLocaleString('fa-IR')}<span className="rx-sound-wave" aria-hidden="true"><i/><i/><i/><i/></span></span>{page.content&&page.visualMode!=='IMAGE'?<ReadAlongText key={`${book.id}-${number}`} text={page.content} offset={offset} follow terms={terms} captions captionLength={single?44:72} contained/>:<p>{page.audioUrl?'روایت این صفحه را بشنو؛ زیرنویس این صفحه ثبت نشده است.':'تصویر اصلی این صفحهٔ کتاب'}</p>}</section>}
- {message&&<p className="rx-immersive-status" role="status">{message}</p>}<footer className="rx-immersive-player" aria-label="پخش‌کننده در تصویر کامل">{playback&&<ReaderPlayback state={playback}/>}</footer></div>}
+ <ReaderAccountStamp code={page?.protection?.watermark}/>{message&&<p className="rx-immersive-status" role="status">{message}</p>}<footer className="rx-immersive-player" aria-label="پخش‌کننده در تصویر کامل">{playback&&<ReaderPlayback state={playback}/>}</footer></div>}
  </dialog>;
 }

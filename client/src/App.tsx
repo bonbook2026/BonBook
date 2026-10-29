@@ -8,6 +8,7 @@ import {SiteFeaturesProvider} from './hooks/useSiteFeatures';
 import {SectionGate,SiteHome} from './components/SectionGate';
 import {AdminSections} from './pages/AdminSections';
 import {AdminLibraryHero} from './pages/AdminLibraryHero';
+import {AdminContentSecurity} from './pages/AdminContentSecurity';
 import { Library } from './pages/Library';
 import { LibrarySearch } from './pages/LibrarySearch';
 import { Reader } from './pages/Reader';
@@ -38,8 +39,8 @@ function AppContent(){
     <Route path="/" element={<SiteHome/>}/>
     <Route path="/dashboard" element={<SiteHome/>}/>
     <Route path="/library" element={<SectionGate section="library"><Library/></SectionGate>}/>
-    <Route path="/search" element={<SectionGate section="search"><LibrarySearch/></SectionGate>}/>
-    <Route path="/read/:bookId/:page" element={<SectionGate section="library"><Reader/></SectionGate>}/>
+    <Route path="/search" element={<SectionGate section="search"><Protected><LibrarySearch/></Protected></SectionGate>}/>
+    <Route path="/read/:bookId/:page" element={<SectionGate section="library"><Protected><Reader/></Protected></SectionGate>}/>
     <Route path="/login" element={<Login/>}/>
     <Route path="/auth/complete" element={<GoogleComplete/>}/>
     <Route path="/shop" element={<SectionGate section="store"><StoreFront/></SectionGate>}/>
@@ -53,6 +54,7 @@ function AppContent(){
     <Route path="/admin/books/:id" element={<Protected admin><AdminBook/></Protected>}/>
     <Route path="/admin/sections" element={<Protected admin><AdminSections/></Protected>}/>
     <Route path="/admin/library-hero" element={<Protected admin><AdminLibraryHero/></Protected>}/>
+    <Route path="/admin/content-security" element={<Protected admin><AdminContentSecurity/></Protected>}/>
     <Route path="/admin/access" element={<Protected admin><AdminAccess/></Protected>}/>
     <Route path="/admin/categories" element={<Protected admin><AdminCategories/></Protected>}/>
     <Route path="*" element={<SiteHome/>}/>

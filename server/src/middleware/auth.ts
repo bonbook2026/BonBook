@@ -1,16 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
-import { isLocalTelegramRequest, LOCAL_TELEGRAM_ID } from '../services/localTelegramService';
 import { cookieValue, SESSION_COOKIE } from '../services/sessionService';
+import crypto from 'crypto';
+import {contentIdentity} from '../services/contentProtection';
 
 export interface AuthRequest extends Request {
   userId?: number;
   telegramId?: string;
   adminRole?: string;
+  sessionToken?:string;
 }
 
-export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
+export async function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   const cookieToken = cookieValue(req, SESSION_COOKIE);
   if (!authHeader?.startsWith('Bearer ') && !cookieToken) {
@@ -25,20 +27,10 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
   }
 
   try {
-    const payload = jwt.verify(token, config.jwtSecret) as {
-      userId: number;
-      telegramId: string;
-      localTelegram?: boolean;
-    };
-    if (!Number.isSafeInteger(payload.userId) || typeof payload.telegramId !== 'string') throw new Error('Invalid session');
-    if (payload.localTelegram && (!isLocalTelegramRequest(req) || payload.telegramId !== LOCAL_TELEGRAM_ID)) {
-      throw new Error('Local Telegram sessions are only available in local development');
-    }
-    if (payload.telegramId === LOCAL_TELEGRAM_ID && payload.localTelegram !== true) {
-      throw new Error('Local Telegram sessions require a development token');
-    }
-    req.userId = payload.userId;
-    req.telegramId = payload.telegramId;
+    const identity=await contentIdentity(req);
+    req.userId = identity.userId;
+    req.sessionToken=identity.token;
+    req.telegramId = (jwt.decode(token) as {telegramId:string}).telegramId;
     next();
   } catch {
     res.status(401).json({ error: 'توکن نامعتبر است' });
@@ -46,7 +38,7 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
 }
 
 export function generateToken(userId: number, telegramId: string): string {
-  return jwt.sign({ userId, telegramId }, config.jwtSecret, { expiresIn: '24h' });
+  return jwt.sign({ userId, telegramId }, config.jwtSecret, { expiresIn: '24h',jwtid:crypto.randomUUID() });
 }
 
 export function generateLocalTelegramToken(userId: number): string {

@@ -25,9 +25,10 @@ export async function localTelegramLogin(req: Request, res: Response, next: Next
     const user = await userService.findOrCreate(LOCAL_TELEGRAM_ID, 'کاربر', 'آزمایشی');
     const profileStatus = userService.isProfileComplete(user);
 
+    const token=generateLocalTelegramToken(user.id);setSessionCookie(res,token);
     res.setHeader('Cache-Control', 'no-store');
     res.json({
-      token: generateLocalTelegramToken(user.id),
+      token,
       user: {
         id: user.id,
         telegramId: user.telegramId,

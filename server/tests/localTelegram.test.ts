@@ -7,6 +7,8 @@ import authRoutes from '../src/routes/auth';
 import { AuthRequest, authMiddleware, generateLocalTelegramToken, generateToken } from '../src/middleware/auth';
 import { isLocalTelegramRequest, LOCAL_TELEGRAM_ID } from '../src/services/localTelegramService';
 import { UserService } from '../src/services/userService';
+import prisma from '../src/lib/prisma';
+vi.mock('../src/lib/prisma',()=>({default:{user:{findUnique:vi.fn()},contentSession:{findUnique:vi.fn(),upsert:vi.fn(),deleteMany:vi.fn()},contentSecurityEvent:{deleteMany:vi.fn()}}}));
 
 const originalConfig = {
   nodeEnv: config.nodeEnv,
@@ -54,6 +56,10 @@ describe('Local Telegram login', () => {
     config.localTelegramLogin = true;
     config.jwtSecret = 'local-telegram-test-secret';
     vi.spyOn(UserService.prototype, 'findOrCreate').mockResolvedValue(localUser);
+    vi.mocked(prisma.user.findUnique).mockImplementation(async(args:any)=>args.where.id===42?{...localUser,role:'READER'}:args.where.id===7?{...localUser,id:7,telegramId:'123456',role:'READER'}:null);
+    vi.mocked(prisma.contentSession.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.contentSession.upsert).mockResolvedValue({revokedAt:null} as any);
+    vi.mocked(prisma.contentSession.deleteMany).mockResolvedValue({count:0});vi.mocked(prisma.contentSecurityEvent.deleteMany).mockResolvedValue({count:0});
   });
 
   afterEach(() => {

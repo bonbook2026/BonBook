@@ -7,6 +7,8 @@ export interface User {
   role?: 'OWNER' | 'ADMIN' | 'READER';
   telegramUsername?: string | null;
 }
+export interface SecurityAccount{id:number;firstName:string|null;lastName:string|null;role:string;watermark:string}
+export interface ContentSecurityOverview{activeSessions:number;blockedEvents24h:number;account:SecurityAccount|null;sessions:{id:string;current:boolean;account:SecurityAccount;createdAt:string;expiresAt:string}[];events:{id:number;kind:string;createdAt:string;account:SecurityAccount|null}[]}
 
 export interface AuthResponse {
   token: string;
@@ -51,6 +53,7 @@ export interface LibraryBook {
 }
 export interface ContentsEntry{title:string;pageNumber:number;level:number}
 export interface LibraryPage {
+  protection?:{watermark:string};
   id: number; bookId: number; number: number; heading: string; content: string; keywords: string;
   audioAssetId: string | null; audioUrl: string | null; updatedAt: string;
   sourceUrl?:string|null;sourcePageNumber?:number|null;sourceMimeType?:string|null;

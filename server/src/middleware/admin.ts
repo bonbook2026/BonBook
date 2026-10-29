@@ -1,12 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from './auth';
 import prisma from '../lib/prisma';
-import {verifiedRateLimitAccount} from './rateLimiter';
+import {contentIdentity,isAdministrator} from '../services/contentProtection';
 
 export async function requestIsAdmin(req:Request){
-  const id=verifiedRateLimitAccount(req);
-  const user=id?await prisma.user.findUnique({where:{id},select:{role:true}}):null;
-  return Boolean(user&&['OWNER','ADMIN'].includes(user.role));
+  try{return isAdministrator(await contentIdentity(req));}catch{return false;}
 }
 
 export async function requireAdmin(req: AuthRequest, res: Response, next: NextFunction) {
@@ -19,6 +17,6 @@ export async function requireAdmin(req: AuthRequest, res: Response, next: NextFu
 }
 
 export function requireOwner(req: AuthRequest, res: Response, next: NextFunction) {
-  if (req.adminRole !== 'OWNER') { res.status(403).json({ error: 'مدیریت ادمین‌ها فقط برای مالک فعال است.' }); return; }
+  if (req.adminRole !== 'OWNER') { res.status(403).json({ error: 'این بخش فقط برای مالک فعال است.' }); return; }
   next();
 }

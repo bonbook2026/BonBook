@@ -14,7 +14,7 @@ it('serves direct admin settings links and reader refreshes without treating API
     const app=express();installClientRoutes(app,directory);
     server=await new Promise<Server>(resolve=>{const running=app.listen(0,'127.0.0.1',()=>resolve(running));});
     const base='http://127.0.0.1:'+(server.address() as any).port;
-    for(const route of ['/admin/sections','/admin/library-hero','/admin/library-hero/','/admin/books/5','/library','/read/5/10']){
+    for(const route of ['/admin/sections','/admin/content-security','/admin/library-hero','/admin/library-hero/','/admin/books/5','/library','/read/5/10']){
       const response=await fetch(base+route);expect(response.status).toBe(200);expect(response.headers.get('cache-control')).toBe('no-store');expect(await response.text()).toContain('BonBook fixture');
     }
     for(const route of ['/api/site/sections','/admin/unknown','/.env'])expect((await fetch(base+route)).status).not.toBe(200);

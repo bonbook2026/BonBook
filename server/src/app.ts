@@ -23,6 +23,9 @@ app.use(helmet(config.preproduction ? {
   xFrameOptions: false,
 } : undefined));
 app.use(cors({ origin: new URL(config.frontendUrl).origin, credentials: true }));
+// This disables capture APIs initiated by our own pages. It cannot control OS
+// recorders or browser extensions, which run outside this document's policy.
+app.use((_req,res,next)=>{res.setHeader('Permissions-Policy','display-capture=(), microphone=(), camera=(), geolocation=()');res.setHeader('Referrer-Policy','same-origin');next();});
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 

@@ -5,9 +5,10 @@ import prisma from '../lib/prisma';
 import { config } from '../config';
 import { HttpError } from '../lib/httpError';
 import { applyVerifiedAccess } from '../services/accessService';
-import { authenticationResponse, cookieValue, SESSION_COOKIE, setSessionCookie } from '../services/sessionService';
+import { authenticationResponse, cookieValue, SESSION_COOKIE, setSessionCookie,sessionCookieOptions } from '../services/sessionService';
 import { generateToken } from '../middleware/auth';
 import { AuthRequest } from '../middleware/auth';
+import {revokeRequestSession} from '../services/contentProtection';
 
 const stateCookie = 'bonbook_google_state';
 const hash = (value: string) => crypto.createHash('sha256').update(value).digest('hex');
@@ -83,11 +84,15 @@ export async function currentSession(req: AuthRequest, res: Response, next: Next
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
     if (!user) throw new HttpError(401, 'دوباره وارد حساب شوید.');
     res.setHeader('Cache-Control', 'no-store');
-    res.json(authenticationResponse(user, res));
+    res.json({...authenticationResponse(user, res,req.sessionToken),token:''});
   } catch (error) { next(error); }
 }
 
-export function logout(_req: Request, res: Response) {
-  res.clearCookie(SESSION_COOKIE, { path: '/', httpOnly: true, secure: config.nodeEnv === 'production', sameSite: 'lax' });
+export async function logout(req: Request, res: Response,next:NextFunction) {
+  if(req.get('origin')&&req.get('origin')!==new URL(config.frontendUrl).origin){res.status(403).json({error:'مبدأ درخواست معتبر نیست.'});return;}
+  try{await revokeRequestSession(req);}catch(error){next(error);return;}
+  res.clearCookie(SESSION_COOKIE,sessionCookieOptions());
+  // Remove pre-partitioned deployments' legacy first-party cookie as well.
+  if(config.nodeEnv==='production')res.clearCookie(SESSION_COOKIE,{path:'/',httpOnly:true,secure:true,sameSite:'lax'});
   res.json({ ok: true });
 }

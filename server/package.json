@@ -24,6 +24,7 @@
     "mammoth": "^1.13.0",
     "multer": "^2.5.0",
     "pdfjs-dist": "^6.4.299",
+    "sharp": "0.35.5",
     "validator": "^13.12.0",
     "yauzl": "^3.4.0"
   },
@@ -40,12 +41,13 @@
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.5"
+    "vite": "7.3.7",
+    "vitest": "5.0.5"
   },
   "allowScripts": {
     "@prisma/client@5.22.0": true,
     "@prisma/engines@5.22.0": true,
     "prisma@5.22.0": true,
-    "esbuild@0.21.5": true
+    "esbuild@0.28.2": true
   }
 }

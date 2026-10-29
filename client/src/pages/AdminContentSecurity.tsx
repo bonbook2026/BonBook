@@ -1,0 +1,21 @@
+import {useEffect,useState} from 'react';
+import {AdminShell} from '../components/AdminShell';
+import {useAuth} from '../hooks/useAuth';
+import {api} from '../services/api';
+import {ContentSecurityOverview} from '../types';
+const kinds:Record<string,string>={INVALID_MEDIA_GRANT:'مجوز فایل نامعتبر یا منقضی',UNAUTHENTICATED_MEDIA:'درخواست فایل بدون ورود',CROSS_SITE_CONTENT:'دریافت از سایت دیگر',PAGE_RATE_LIMIT:'درخواست انبوه صفحه‌ها',MEDIA_RATE_LIMIT:'درخواست انبوه فایل‌ها',SESSION_REVOKED:'نشست پایان یافت'};
+const date=(value:string)=>new Date(value).toLocaleString('fa-IR');
+export function AdminContentSecurity(){
+ const {user}=useAuth(),[data,setData]=useState<ContentSecurityOverview|null>(null),[code,setCode]=useState(''),[filter,setFilter]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[refresh,setRefresh]=useState(0),[busy,setBusy]=useState('');
+ useEffect(()=>{let live=true;setError('');void api.admin.security(filter).then(result=>{if(live)setData(result);}).catch(error=>{if(live)setError(error.message);});return()=>{live=false;};},[filter,refresh]);
+ const revoke=async(id:string)=>{setBusy(id);setError('');try{await api.admin.revokeSession(id);setNotice('نشست پایان یافت؛ مجوزهای فایل آن دیگر قابل استفاده نیستند.');setRefresh(value=>value+1);}catch(error){setError((error as Error).message);}finally{setBusy('');}};
+ return <AdminShell><section className="admin-site-settings content-security"><div className="settings-intro"><span className="shop-eyebrow">حفاظت و پیگیری محتوا</span><h2>امنیت کتاب‌ها</h2><p>متن، تصویر و صدا به ورود معتبر نیاز دارند. لینک فایل‌ها موقت و مخصوص همان نشست است؛ شناسهٔ نسخهٔ شخصی داخل تصویر صفحه‌ها درج می‌شود.</p></div>
+ <div className="settings-admin-note"><p>وب نمی‌تواند اسکرین‌شات سیستم‌عامل، ضبط صدا یا اکستنشنِ دارای مجوز را به‌طور کامل متوقف کند. این بخش، کنترل دسترسی و پیگیری نسخهٔ کپی‌شده را فراهم می‌کند؛ حفاظت DRM صوتی پیاده نشده است.</p></div>
+ {error&&<p className="notice error" role="alert">{error}</p>}<p role="status">{notice}</p>
+ <div className="content-security-stats"><article><b>{(data?.activeSessions||0).toLocaleString('fa-IR')}</b><span>نشست معتبر</span></article><article><b>{(data?.blockedEvents24h||0).toLocaleString('fa-IR')}</b><span>رویداد مسدودشده در ۲۴ ساعت</span></article></div>
+ <form className="content-security-filter" onSubmit={event=>{event.preventDefault();setFilter(code.trim().toUpperCase());setRefresh(value=>value+1);}}><label>پیگیری شناسهٔ روی تصویر<input dir="ltr" placeholder="BB-…" value={code} maxLength={40} onChange={event=>setCode(event.target.value)}/></label><button className="reader-button primary">پیگیری حساب</button><button type="button" className="reader-button" onClick={()=>{setCode('');setFilter('');setRefresh(value=>value+1);}}>نمایش همه و تازه‌سازی</button></form>
+ {data?.account&&<p className="notice">حساب پیدا شد: {data.account.firstName} {data.account.lastName} · <bdi>{data.account.watermark}</bdi></p>}
+ <h3>نشست‌های فعال</h3><p className="content-security-hint">پایان نشست، ورود دوباره را الزامی می‌کند. محتوای قبلاً ضبط‌شده را نمی‌توان از دستگاه دریافت‌کننده پس گرفت.</p><div className="content-security-list">{data?.sessions.map(session=><article key={session.id}><div><strong>{session.account.firstName||'کاربر'} {session.account.lastName}{session.current?' · همین مرورگر':''}</strong><code dir="ltr">{session.account.watermark}</code><small>شروع: {date(session.createdAt)} · انقضا: {date(session.expiresAt)}</small></div>{user?.role==='OWNER'&&<button className="reader-button" disabled={!!busy} onClick={()=>void revoke(session.id)}>{busy===session.id?'در حال پایان…':'پایان نشست'}</button>}</article>)}{data&&!data.sessions.length&&<p>نشستی با این فیلتر پیدا نشد.</p>}</div>
+ <h3>رویدادهای اخیر</h3><div className="content-security-list">{data?.events.map(event=><article key={event.id}><div><strong>{kinds[event.kind]||event.kind}</strong><small>{event.account?<bdi>{event.account.watermark}</bdi>:'کاربر بدون ورود'} · {date(event.createdAt)}</small></div></article>)}{data&&!data.events.length&&<p>رویدادی در این بازه ثبت نشده است.</p>}</div><p className="content-security-hint">حداکثر ۵۰ مورد اخیر نمایش داده می‌شود. رویدادهای مشابه در هر دقیقه ادغام می‌شوند؛ این اعداد به‌تنهایی اثبات سرقت نیستند. ادمین‌ها سقف درخواست محتوا ندارند.</p>
+ </section></AdminShell>;
+}

@@ -14,12 +14,14 @@ import {useSiteFeatures} from '../hooks/useSiteFeatures';
 import {ReaderPlayback,ReaderPlaybackState} from '../components/ReaderPlayback';
 import {ReaderImmersive} from '../components/ReaderImmersive';
 import {resumeDevicePage,saveDeviceReading} from '../utils/readingProgress';
+import {useReaderProtection,ReaderAccountStamp} from '../components/ReaderProtection';
 
 function preference(key:string,fallback:string){try{return localStorage.getItem(key)||fallback;}catch{return fallback;}}
 function remember(key:string,value:string){try{localStorage.setItem(key,value);}catch{/* Reading works without browser storage. */}}
 const fa=(value:number)=>value.toLocaleString('fa-IR');
 
 export function Reader(){
+  useReaderProtection();
   const {canAccess}=useSiteFeatures();
   const params=useParams(),bookId=Number(params.bookId),number=Number(params.page),navigate=useNavigate(),location=useLocation();
   const [book,setBook]=useState<LibraryBook|null>(null),[loadedPage,setPage]=useState<LibraryPage|null>(null),[facing,setFacing]=useState<LibraryPage|null>(null);
@@ -98,7 +100,7 @@ export function Reader(){
           {!page&&!error&&<div className="rx-page-loading" role="status">در حال ورق‌زدن…</div>}
           <button className="rx-page-arrow rx-next" disabled={next===undefined} onClick={()=>next!==undefined&&go(next)} aria-label={fullBook?'ویس بعدی کتاب':'ورق به صفحهٔ بعد'}><Icon name="chevron"/></button>
         </div>
-        <div className="rx-page-footer"><span className="rx-original-label"><i/>{page&&readerPageImage(page)?'تصویر اصلی کتاب':'متن کتاب'}{isAdmin&&page?.sourceUrl&&<a href={page.sourceUrl+(page.sourcePageNumber?'#page='+page.sourcePageNumber:'')} target="_blank" rel="noopener noreferrer">فایل اصلی ↗</a>}</span><label className="rx-page-counter">صفحهٔ <select value={number} aria-label="انتخاب صفحهٔ کتاب" onChange={e=>go(Number(e.target.value))}>{book.pages?.map(item=><option key={item.number} value={item.number}>{fa(item.number)}</option>)}</select><span>از {fa(book.pageCount)}</span></label><span className="rx-keyboard-tip">با کلیدهای ← → ورق بزن</span></div>
+        <div className="rx-page-footer"><span className="rx-original-label"><i/>{page&&readerPageImage(page)?'تصویر اصلی کتاب':'متن کتاب'}{isAdmin&&page?.sourceUrl&&<a href={page.sourceUrl+(page.sourcePageNumber?'#page='+page.sourcePageNumber:'')} target="_blank" rel="noopener noreferrer">فایل اصلی ↗</a>}</span><label className="rx-page-counter">صفحهٔ <select value={number} aria-label="انتخاب صفحهٔ کتاب" onChange={e=>go(Number(e.target.value))}>{book.pages?.map(item=><option key={item.number} value={item.number}>{fa(item.number)}</option>)}</select><span>از {fa(book.pageCount)}</span></label><ReaderAccountStamp code={page?.protection?.watermark}/></div>
         <section className="rx-transcript-card" aria-label="متن همراه با صدا"><div className="rx-transcript-top"><div className="rx-transcript-heading"><h2><span className="rx-sound-wave" aria-hidden="true"><i/><i/><i/><i/></span>متن همراهِ صدا</h2>{page?.content&&page.visualMode!=='IMAGE'&&<button className="rx-caption-button" aria-pressed={captions} onClick={()=>setCaptions(!captions)}>{captions?'نمایش متن کامل':'نمایش زیرنویس'}</button>}</div><label className="rx-follow-label"><input type="checkbox" checked={follow} onChange={e=>setFollow(e.target.checked)}/><span/>دنبال‌کردن خودکار</label></div>
           <div className="rx-transcript-body" style={{fontSize}}>{!page?<p className="rx-transcript-empty">در حال دریافت صفحه…</p>:page.visualMode==='IMAGE'?<p className="rx-transcript-empty">{page.audioUrl?'این صفحه تصویری است؛ روایت صوتی آن را می‌توانی پخش کنی.':'این صفحه تصویری است؛ تصویر اصلی کتاب را ببین.'}</p>:page.content?<ReadAlongText key={`${bookId}-${number}`} text={page.content} offset={offset} follow={follow} terms={terms} captions={useCaptions} contained/>:<p className="rx-transcript-empty">این صفحه متن قابل خواندن ندارد؛ تصویر اصلی کتاب را ببین.</p>}</div>
           <div className="rx-transcript-foot"><span>{active&&audio.approximate?'همراهی این روایت با متن تقریبی است.':fullBook?`ویس ${fa(voicePosition+1)} از ${fa(voices.length)}؛ صفحه‌های بدون ویس رد می‌شوند.`:session?.completed?'پخش همهٔ ویس‌های کتاب به پایان رسید.':'با پخش روایت، جملهٔ در حال خواندن روشن می‌شود.'}</span><button onClick={()=>setFontSize(fontSize>=23?17:fontSize+2)} aria-label="بزرگ‌تر کردن متن همراه">آ +</button></div>

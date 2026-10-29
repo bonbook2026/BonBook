@@ -1,6 +1,7 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {LibraryPage} from '../types';
 import {mediaUrl} from '../services/api';
+import {ReaderAccountStamp} from './ReaderProtection';
 
 export function readerPageImage(page:LibraryPage){
   return page.visualMode==='TEXT'?null:mediaUrl(page.imageUrl||page.sourceImageUrl||null);
@@ -8,10 +9,11 @@ export function readerPageImage(page:LibraryPage){
 
 export function ReaderSheet({page,title,large=false}:{page:LibraryPage;title:string;large?:boolean}){
   const url=readerPageImage(page),[failed,setFailed]=useState<string|null>(null);
-  return url&&failed!==url?<img src={url} alt={`${title}، تصویر صفحهٔ ${page.number.toLocaleString('fa-IR')}`} onError={()=>setFailed(url)} decoding="async"/>:
+  return url&&failed!==url?<img src={url} alt={`${title}، تصویر صفحهٔ ${page.number.toLocaleString('fa-IR')}`} draggable={false} onError={()=>setFailed(url)} decoding="async"/>:
     <div className={'rx-text-page'+(large?' rx-text-page-large':'')}>
       <span className="rx-text-page-title">{title}</span><h2>{page.heading||`صفحهٔ ${page.number.toLocaleString('fa-IR')}`}</h2>
       <p>{page.content||'این صفحه متنی ندارد.'}</p><span className="rx-text-page-number">{page.number.toLocaleString('fa-IR')}</span>
+      <ReaderAccountStamp code={page.protection?.watermark}/>
       {url&&failed===url&&<small>تصویر بارگذاری نشد؛ می‌توانی متن این صفحه را بخوانی.</small>}
     </div>;
 }

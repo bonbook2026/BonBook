@@ -8,6 +8,7 @@ import {useNarration,NarrationTarget} from '../hooks/useNarration';
 import {LibraryHeroSettings,defaultLibraryHero} from '../types/siteSettings';
 import {useSiteFeatures} from '../hooks/useSiteFeatures';
 import {useTheme} from '../hooks/useTheme';
+import {useAuth} from '../hooks/useAuth';
 
 function storedMotion(){try{return localStorage.getItem('bonbook_library_motion')!=='off';}catch{return true;}}
 function time(value:number){return `${Math.floor(value/60).toLocaleString('fa-IR')}:${String(Math.floor(value%60)).padStart(2,'0').replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[Number(d)])}`;}
@@ -15,6 +16,7 @@ function time(value:number){return `${Math.floor(value/60).toLocaleString('fa-IR
 export interface LibraryHeroControls{listen:()=>void}
 export function LibraryHero({book,resumeNumber,controls,config=defaultLibraryHero}:{book:LibraryBook|null;resumeNumber?:number;controls:Ref<LibraryHeroControls>;config?:LibraryHeroSettings}){
   const {canAccess}=useSiteFeatures();
+  const {user}=useAuth();
   const {theme}=useTheme(),audio=useNarration(),navigate=useNavigate();
   const [story,setStory]=useState(0),[query,setQuery]=useState(''),[opened,setOpened]=useState(false),[turned,setTurned]=useState(false),[tracking,setTracking]=useState(false);
   const [reduced,setReduced]=useState(()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches),[moving,setMoving]=useState(storedMotion),[inView,setInView]=useState(true),[tabVisible,setTabVisible]=useState(!document.hidden);
@@ -40,14 +42,15 @@ export function LibraryHero({book,resumeNumber,controls,config=defaultLibraryHer
   useEffect(()=>{const target=art.current;if(!target)return;const observer=new IntersectionObserver(entries=>setInView(entries[0]?.isIntersecting??true),{threshold:.1});observer.observe(target);const visibility=()=>setTabVisible(!document.hidden);document.addEventListener('visibilitychange',visibility);return()=>{observer.disconnect();document.removeEventListener('visibilitychange',visibility);};},[]);
   useEffect(()=>{const up=()=>{pointer.current=null;};window.addEventListener('pointerup',up);return()=>window.removeEventListener('pointerup',up);},[]);
   useEffect(()=>{
-    let live=true;if(!opened||!book||config.insideImageAssetId)return;
+    let live=true;if(!user||!opened||!book||config.insideImageAssetId)return;
     void getBook(book.id).then(metadata=>{const first=metadata.pages?.[0];return first?api.library.page(book.id,first.number):null;}).then(result=>{if(live&&result?.page.visualMode!=='TEXT')setInsideImage(mediaUrl(result?.page.imageUrl||result?.page.sourceImageUrl||null));}).catch(()=>{if(live)setInsideImage(null);});
     return()=>{live=false;};
-  },[opened,book?.id,config.insideImageAssetId]);
+  },[opened,book?.id,config.insideImageAssetId,user?.id]);
   const resetTilt=()=>{setTracking(false);art.current?.style.setProperty('--tilt-x','0deg');art.current?.style.setProperty('--tilt-y','0deg');};
   const toggleBook=()=>{resetTilt();if(turned)setTurned(false);else setOpened(value=>!value);};
   const toggleAudio=async()=>{
     if(!canListen)return;
+    if(!user){navigate('/login',{state:{next:'/library'}});return;}
     if(loading){request.current++;setLoading(false);return;}
     if(active&&audio.status==='playing'){audio.pause();return;}
     if(active&&audio.status==='paused'){audio.resume();return;}
@@ -55,7 +58,7 @@ export function LibraryHero({book,resumeNumber,controls,config=defaultLibraryHer
     try{
       let target=sample;
       if(!target){
-        if(config.audioMode==='UPLOAD')target={bookId:0,number:0,title:config.audioTitle,language:'fa-IR',content:'',audioUrl:mediaUrl('/api/media/'+config.audioAssetId)};
+        if(config.audioMode==='UPLOAD')target={bookId:0,number:0,title:config.audioTitle,language:'fa-IR',content:'',audioUrl:mediaUrl((await api.site.heroAudio()).url)};
         else{
           const metadata=await getBook(config.audioMode==='PAGE'?config.audioBookId!:book!.id);
           const chosen=config.audioMode==='PAGE'?metadata.pages?.find(page=>page.number===config.audioPageNumber&&page.hasAudio):chooseLibraryPreview(metadata.pages||[],resumeNumber);

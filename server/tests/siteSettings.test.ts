@@ -71,7 +71,7 @@ describe('Site section access and editable library hero',()=>{
     expect((await call('/api/library','GET',undefined,forgedRole)).status).toBe(403);
     expect((await call('/api/library','GET',undefined,admin)).status).toBe(200);
     expect((await prisma.libraryBook.findUnique({where:{id:book.id}})).status).toBe('PUBLISHED');
-    await call('/api/admin/sections/library','PUT',{enabled:true},admin);expect((await call('/api/library/'+book.id+'/pages/1')).status).toBe(200);
+    await call('/api/admin/sections/library','PUT',{enabled:true},admin);expect((await call('/api/library/'+book.id+'/pages/1','GET',undefined,admin)).status).toBe(200);
   });
   it('disables search independently and keeps authentication and payment callbacks reachable',async()=>{
     const admin=token(owner.id,owner.telegramId),viewer=token(reader.id,reader.telegramId);
@@ -103,7 +103,9 @@ describe('Site section access and editable library hero',()=>{
     expect((await call('/api/media/'+audioId,'GET',undefined,admin)).status).toBe(200);
     const hero={...defaults,audioMode:'UPLOAD',audioAssetId:audioId,frontImageAssetId:coverId};
     expect((await call('/api/admin/library-hero','PUT',hero,admin)).status).toBe(200);
-    const response=await call('/api/media/'+audioId);expect(response.status).toBe(200);expect(response.headers.get('cache-control')).toBe('private, no-cache');
+    expect((await call('/api/media/'+audioId)).status).toBe(401);
+    const viewer=token(reader.id,reader.telegramId),sample=(await(await call('/api/site/library-hero/audio','GET',undefined,viewer)).json()).url;
+    const response=await call(sample,'GET',undefined,viewer);expect(response.status).toBe(200);expect(response.headers.get('cache-control')).toContain('no-store');
     expect((await call('/api/media/'+coverId)).status).toBe(200);
     await call('/api/admin/library-hero','PUT',{...hero,audioMode:'OFF',bookVisible:false},admin);
     expect((await call('/api/media/'+audioId)).status).toBe(404);expect((await call('/api/media/'+coverId)).status).toBe(404);

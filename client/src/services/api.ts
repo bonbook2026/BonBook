@@ -12,11 +12,13 @@ const TOKEN_KEY = IS_DEMO ? 'bonbook_preview_token' : IS_PREPRODUCTION ? 'bonboo
 let authToken: string | null = null;
 
 export function setToken(token: string) {
+  if(!IS_DEMO){authToken=null;clearLegacyTokens();return;}
   authToken = token;
   localStorage.setItem(TOKEN_KEY, token);
 }
 
 export function getToken(): string | null {
+  if(!IS_DEMO){clearLegacyTokens();return null;}
   if (!authToken) {
     try {
       authToken = localStorage.getItem(TOKEN_KEY);
@@ -26,6 +28,8 @@ export function getToken(): string | null {
   }
   return authToken;
 }
+function clearLegacyTokens(){for(const key of ['bonbook_token','bonbook_preproduction_token'])try{localStorage.removeItem(key);}catch{}}
+function authenticationHeaders():Record<string,string>{const token=getToken();return token?{Authorization:`Bearer ${token}`}:{ };}
 
 export function clearToken() {
   authToken = null;
@@ -59,6 +63,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'خطای ناشناخته' }));
     if(error.code==='SECTION_DISABLED')window.dispatchEvent(new Event('bonbook:sections-changed'));
+    if(response.status===401&&!path.startsWith('/auth/'))window.dispatchEvent(new Event('bonbook:session-ended'));
     throw new ApiError(error.error || `HTTP ${response.status}`,response.status,Number(response.headers.get('Retry-After'))||0);
   }
 
@@ -66,7 +71,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  site:{sections:()=>request<{features:SiteFeatures}>('/site/sections'),hero:()=>request<{hero:LibraryHeroSettings}>('/site/library-hero')},
+  site:{sections:()=>request<{features:SiteFeatures}>('/site/sections'),hero:()=>request<{hero:LibraryHeroSettings}>('/site/library-hero'),heroAudio:()=>request<{url:string}>('/site/library-hero/audio')},
   auth: {
     options: () => request<{google: boolean; telegramBotUrl: string}>('/auth/options'),
     session: () => request<AuthResponse>('/auth/session'),
@@ -134,6 +139,8 @@ export const api = {
     saveProgress: (bookId: number, pageNumber: number) => request<{ok: boolean}>('/library/progress', {method:'PUT', body:JSON.stringify({bookId,pageNumber})}),
   },
   admin: {
+    security:(code='')=>request<import('../types').ContentSecurityOverview>('/admin/content-security'+(code?'?code='+encodeURIComponent(code):'')),
+    revokeSession:(id:string)=>request<{ok:boolean}>(`/admin/content-security/sessions/${id}/revoke`,{method:'POST'}),
     sections:()=>request<{features:SiteFeatures}>('/admin/sections'),
     setSection:(section:SiteSection,enabled:boolean)=>request<{features:SiteFeatures}>(`/admin/sections/${section}`,{method:'PUT',body:JSON.stringify({enabled})}),
     hero:()=>request<{hero:LibraryHeroSettings}>('/admin/library-hero'),
@@ -176,7 +183,7 @@ export const api = {
     applyImport:(id:string,startPage:number)=>request<{bookId:number;added:number}>(`/admin/imports/${id}/apply`,{method:'POST',body:JSON.stringify({startPage})}),
     uploadDocument:async(bookId:number,files:File[],mode:string)=>{
       const body=new FormData();body.append('mode',mode);files.forEach(file=>body.append('files',file));
-      const response=await fetch(`${BASE_URL}/admin/media/import/${bookId}`,{method:'POST',headers:{Authorization:`Bearer ${getToken()||''}`},body});
+      const response=await fetch(`${BASE_URL}/admin/media/import/${bookId}`,{method:'POST',headers:authenticationHeaders(),body});
       const result=await response.json().catch(()=>({error:'بارگذاری کامل نشد. مجموع فایل‌ها باید حداکثر ۳۰ مگابایت باشد.'}));if(!response.ok)throw new ApiError(result.error,response.status);return result as {import:BookImport};
     },
     savePage: (bookId: number, page: Pick<LibraryPage,'number'|'heading'|'content'|'keywords'|'audioAssetId'|'audioCues'|'imageAssetId'|'visualMode'>) => request<{page:LibraryPage}>(`/admin/books/${bookId}/pages/${page.number}`, {method:'PUT',body:JSON.stringify(page)}),
@@ -186,12 +193,12 @@ export const api = {
     removeAdmin: (id:number) => request<{ok:boolean}>(`/admin/access/${id}`, {method:'DELETE'}),
     upload: async (kind: 'cover'|'audio'|'page-image', file: File) => {
       const data = new FormData(); data.append('file',file);
-      const response = await fetch(`${BASE_URL}/admin/media/${kind}`, {method:'POST',headers:{Authorization:`Bearer ${getToken() || ''}`},body:data});
+      const response = await fetch(`${BASE_URL}/admin/media/${kind}`, {method:'POST',headers:authenticationHeaders(),body:data});
       const result = await response.json(); if (!response.ok) throw new Error(result.error || 'بارگذاری انجام نشد.');
       return result as {asset:{id:string;url:string}};
     },
     mediaBlob: async (id:string) => {
-      const response = await fetch(`${BASE_URL}/media/${id}`, {headers:{Authorization:`Bearer ${getToken() || ''}`}});
+      const response = await fetch(`${BASE_URL}/media/${id}`, {headers:authenticationHeaders()});
       if (!response.ok) throw new Error('فایل در دسترس نیست.'); return response.blob();
     },
   },

@@ -15,6 +15,7 @@ export class BookService {
   async getActiveBooks() {
     return prisma.book.findMany({
       where: { isActive: true },
+      select:{id:true,title:true,priceUsd:true,priceToman:true,isActive:true,createdAt:true,updatedAt:true},
       orderBy: { createdAt: 'desc' },
     });
   }

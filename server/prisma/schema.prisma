@@ -123,6 +123,28 @@ model SiteSetting {
   @@map("site_settings")
 }
 
+model ContentSession {
+  id        String    @id
+  userId    Int       @map("user_id")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, expiresAt])
+  @@map("content_sessions")
+}
+
+model ContentSecurityEvent {
+  id        Int      @id @default(autoincrement())
+  userId    Int?     @map("user_id")
+  kind      String
+  assetId   String?  @map("asset_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("content_security_events")
+}
+
 model AdminGrant {
   id            Int      @id @default(autoincrement())
   kind          String

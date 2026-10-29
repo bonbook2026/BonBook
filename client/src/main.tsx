@@ -12,6 +12,7 @@ import './site-theme.css';
 import './library-experience.css';
 import './site-settings.css';
 import './reader-immersive.css';
+import './content-security.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

@@ -2,16 +2,17 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
-import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
 import { config } from '../config';
 import { HttpError } from '../lib/httpError';
 import { AuthRequest } from '../middleware/auth';
-import { cookieValue, SESSION_COOKIE } from '../services/sessionService';
 import { detectMedia } from '../services/mediaService';
 import {pdfPageImage} from '../services/pageImageService';
 import {isPublicHeroMedia} from '../services/libraryHeroService';
 import {requestIsAdmin} from '../middleware/admin';
+import {contentIdentity,isAdministrator,verifyMediaGrant,securityEvent} from '../services/contentProtection';
+import {contentMediaLimiter} from '../middleware/contentSecurity';
+import {watermarkedImage} from '../services/watermarkService';
 
 export async function uploadMedia(req: AuthRequest, res: Response, next: NextFunction) {
   try {
@@ -40,30 +41,38 @@ async function accessibleMedia(req:Request){
     if (!media) throw new HttpError(404, 'فایل پیدا نشد.');
     const published = Boolean(media.covers.length || media.audioPages.length || media.sourcePages.length||media.pageImages.length||await isPublicHeroMedia(id));
     if (!published) {
-      const bearer = req.get('authorization')?.replace(/^Bearer /, '') || cookieValue(req, SESSION_COOKIE);
-      let permitted = false;
-      try {
-        const token = jwt.verify(bearer || '', config.jwtSecret) as { userId: number };
-        const viewer = await prisma.user.findUnique({ where: { id: token.userId } });
-        permitted = Boolean(viewer && ['OWNER', 'ADMIN'].includes(viewer.role));
-      } catch { /* A draft asset is private. */ }
-      if (!permitted) throw new HttpError(404, 'فایل پیدا نشد.');
+      if (!await requestIsAdmin(req)) throw new HttpError(404, 'فایل پیدا نشد.');
     }
-    return {media,published};
+    return {media,published,protectedMedia:Boolean(media.kind==='audio'||media.audioPages.length||media.pageImages.length||media.sourcePages.length)};
 }
+async function mediaIdentity(req:Request,id:string){
+ if(req.get('sec-fetch-site')==='cross-site'){await securityEvent('CROSS_SITE_CONTENT',null,id);throw new HttpError(403,'دریافت محتوا از سایت دیگر مجاز نیست.');}
+ try{return await contentIdentity(req);}catch(error){await securityEvent('UNAUTHENTICATED_MEDIA',null,id);throw error;}
+}
+function limitedMedia(req:Request,res:Response,next:NextFunction,serve:()=>Promise<void>){void contentMediaLimiter(req,res,error=>{if(error){next(error);return;}void serve().catch(next);});}
 export async function readMedia(req: Request, res: Response, next: NextFunction) {
   try {
-    const {media,published}=await accessibleMedia(req);
+    const {media,protectedMedia}=await accessibleMedia(req);
     if(media.kind==='document'&&!media.mimeType.startsWith('image/')&&!await requestIsAdmin(req))throw new HttpError(403,'دسترسی به فایل اصلی کتاب فقط برای مدیریت فعال است.');
+    if(protectedMedia){
+      const identity=await mediaIdentity(req,media.id),rawAdmin=isAdministrator(identity)&&!req.query.grant&&!req.query.expires;
+      if(!rawAdmin)await verifyMediaGrant(req,identity);
+      limitedMedia(req,res,next,async()=>{
+        const filename=path.resolve(config.mediaDirectory,media.filename);
+        if(media.mimeType.startsWith('image/')&&!rawAdmin){res.type('image/png').send(await watermarkedImage(filename,identity.watermark));return;}
+        res.setHeader('Content-Type',media.mimeType);if(rawAdmin&&media.kind==='document'&&!media.mimeType.startsWith('image/')&&media.mimeType!=='application/pdf')res.attachment(media.filename);else res.setHeader('Content-Disposition','inline');res.sendFile(filename);
+      });return;
+    }
     res.setHeader('Content-Type', media.mimeType);
-    res.setHeader('Cache-Control', published ? 'private, no-cache' : 'private, no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     if(media.kind==='document'&&!media.mimeType.startsWith('image/')&&media.mimeType!=='application/pdf')res.attachment(media.filename);
     res.sendFile(path.resolve(config.mediaDirectory, media.filename));
   } catch (error) { next(error); }
 }
 export async function readPdfPageImage(req:Request,res:Response,next:NextFunction){try{
- const {media,published}=await accessibleMedia(req),number=Number(req.params.page);
+ const {media}=await accessibleMedia(req),number=Number(req.params.page);
  if(media.mimeType!=='application/pdf'||!Number.isSafeInteger(number)||number<1||number>2000)throw new HttpError(404,'تصویر صفحه پیدا نشد.');
- const filename=await pdfPageImage(media.id,media.filename,number);res.setHeader('Content-Type','image/png');res.setHeader('Cache-Control',published?'private, no-cache':'private, no-store');res.setHeader('X-Content-Type-Options','nosniff');res.sendFile(filename);
+ const identity=await mediaIdentity(req,media.id),rawAdmin=isAdministrator(identity)&&!req.query.grant&&!req.query.expires;
+ if(!rawAdmin){await verifyMediaGrant(req,identity);if(!await prisma.libraryPage.findFirst({where:{sourceAssetId:media.id,sourcePageNumber:number,book:{status:'PUBLISHED'}},select:{id:true}}))throw new HttpError(404,'این صفحه منتشر نشده است.');}
+ limitedMedia(req,res,next,async()=>{const filename=await pdfPageImage(media.id,media.filename,number);res.type('image/png');if(rawAdmin)res.sendFile(filename);else res.send(await watermarkedImage(filename,identity.watermark));});
 }catch(e){next(e);}}

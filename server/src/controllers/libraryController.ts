@@ -3,7 +3,7 @@ import prisma from '../lib/prisma';
 import { HttpError } from '../lib/httpError';
 import { AuthRequest } from '../middleware/auth';
 import { rankPages, queryTerms } from '../services/searchService';
-import {requestIsAdmin} from '../middleware/admin';
+import {contentIdentity,ContentIdentity,isAdministrator,signedMediaUrl,sessionToken} from '../services/contentProtection';
 
 export function bookJson(book: any) {
   return { id: book.id, title: book.title, author: book.author, description: book.description,
@@ -17,13 +17,17 @@ export function bookJson(book: any) {
     ...(book.pages ? { pages: book.pages.map((page: any) => ({ number: page.number, heading: page.heading,hasAudio:Boolean(page.audioAssetId) })) } : {}),
     ...(book.contents ? {contents:book.contents.map((entry:any)=>({title:entry.title,pageNumber:entry.pageNumber,level:entry.level}))}: {}) };
 }
-export function pageJson(page: any,includeOriginal=true) {
+export function pageJson(page: any,includeOriginal=false) {
   return { id: page.id, bookId: page.bookId, number: page.number, heading: page.heading,
     content: page.content, keywords: page.keywords, audioAssetId: page.audioAssetId,audioCues:JSON.parse(page.audioCues||'[]'),audioCueMode:page.audioCueMode||'NONE',
     sourceUrl:includeOriginal&&page.sourceAssetId?`/api/media/${page.sourceAssetId}`:null,sourcePageNumber:page.sourcePageNumber||null,sourceMimeType:page.source?.mimeType||null,
     imageAssetId:page.imageAssetId||null,imageUrl:page.imageAssetId?`/api/media/${page.imageAssetId}`:null,visualMode:page.visualMode||'AUTO',
     sourceImageUrl:page.source?.mimeType==='application/pdf'&&page.sourcePageNumber?`/api/media/${page.sourceAssetId}/pages/${page.sourcePageNumber}/image`:page.source?.mimeType.startsWith('image/')?`/api/media/${page.sourceAssetId}`:null,
     audioUrl: page.audioAssetId ? `/api/media/${page.audioAssetId}` : null, updatedAt: page.updatedAt };
+}
+export function protectedPageJson(page:any,identity:ContentIdentity){
+ const result=pageJson(page,isAdministrator(identity));
+ return {...result,audioUrl:result.audioUrl?signedMediaUrl(result.audioUrl,identity,true):null,imageUrl:result.imageUrl?signedMediaUrl(result.imageUrl,identity):null,sourceImageUrl:result.sourceImageUrl?signedMediaUrl(result.sourceImageUrl,identity):null,protection:{watermark:identity.watermark}};
 }
 export const positiveId = (value: unknown) => {
   const id = Number(value);
@@ -41,14 +45,16 @@ export async function getLibraryBook(req: Request, res: Response, next: NextFunc
   try {
     const book = await prisma.libraryBook.findFirst({ where: { id: positiveId(req.params.id), status: 'PUBLISHED' }, include: { contents:{orderBy:{position:'asc'}},pages: { select: { number: true, heading: true,audioAssetId:true }, orderBy: { number: 'asc' } } } });
     if (!book) throw new HttpError(404, 'کتاب در دسترس نیست.');
-    res.json({ book: bookJson(book) });
+    const result=bookJson(book);
+    if(sessionToken(req))await contentIdentity(req);else{delete result.pages;delete result.contents;}
+    res.json({ book: result });
   } catch (error) { next(error); }
 }
 export async function getLibraryPage(req: Request, res: Response, next: NextFunction) {
   try {
     const page = await prisma.libraryPage.findFirst({ where: { bookId: positiveId(req.params.id), number: positiveId(req.params.page), book: { status: 'PUBLISHED' } },include:{source:{select:{mimeType:true}}} });
     if (!page) throw new HttpError(404, 'صفحه در دسترس نیست.');
-    res.json({ page: pageJson(page,await requestIsAdmin(req)) });
+    res.json({ page: protectedPageJson(page,await contentIdentity(req)) });
   } catch (error) { next(error); }
 }
 export async function searchLibrary(req: Request, res: Response, next: NextFunction) {
@@ -59,8 +65,7 @@ export async function searchLibrary(req: Request, res: Response, next: NextFunct
     if (!terms.length) { res.json({ query, results: [] }); return; }
     const pages = await prisma.libraryPage.findMany({ where: { book: { status: 'PUBLISHED' }, OR: terms.map((term) => ({ searchText: { contains: term } })), ...(req.query.bookId ? { bookId: positiveId(req.query.bookId) } : {}) },
       include: { book: { select: { title: true, author: true, language: true } } }, take: 200 });
-    const includeOriginal=await requestIsAdmin(req);
-    const results = rankPages(query, pages).map((page) => ({ ...pageJson(page,includeOriginal), bookTitle: page.book.title, author: page.book.author,
+    const results = rankPages(query, pages).slice(0,20).map((page) => ({ ...pageJson(page,false),content:page.excerpt,audioUrl:null,audioCues:[],audioAssetId:null,imageAssetId:null,imageUrl:null,sourceImageUrl:null,bookTitle: page.book.title, author: page.book.author,
       language: page.book.language, excerpt: page.excerpt, matchedTerms: page.matchedTerms }));
     res.json({ query, results });
   } catch (error) { next(error); }

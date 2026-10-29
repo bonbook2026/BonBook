@@ -9,10 +9,11 @@ import { OAuth2Client } from 'google-auth-library';
 import { config } from '../src/config';
 
 describe('Reader, verified identities and administration',()=>{
-  let server:Server,base:string,prisma:any,applyVerifiedAccess:any,generateToken:any,owner:any,reader:any,helper:any,book:any;
+  let server:Server,base:string,prisma:any,applyVerifiedAccess:any,generateToken:any,owner:any,reader:any,helper:any,book:any,defaultReaderToken='';
   const fixture=path.resolve(__dirname,'../../build/reader-'+crypto.randomUUID()),database=fixture+'.db';
   const saved={owners:config.owners,google:config.google,mediaDirectory:config.mediaDirectory,jwtSecret:config.jwtSecret,frontendUrl:config.frontendUrl,nodeEnv:config.nodeEnv};
-  const call=(route:string,method='GET',body?:unknown,token?:string)=>fetch(base+route,{method,headers:{...(body?{'Content-Type':'application/json'}:{}),...(token?{Authorization:'Bearer '+token}:{})},...(body?{body:JSON.stringify(body)}:{})});
+  // Library assertions exercise a signed-in reader; anonymous denial has its own security suite.
+  const call=(route:string,method='GET',body?:unknown,token?:string)=>{const credential=token||(route.startsWith('/api/library')?defaultReaderToken:'');return fetch(base+route,{method,headers:{...(body?{'Content-Type':'application/json'}:{}),...(credential?{Authorization:'Bearer '+credential}:{})},...(body?{body:JSON.stringify(body)}:{})});};
   beforeAll(async()=>{
     fs.mkdirSync(path.dirname(database),{recursive:true});
     fs.writeFileSync(database,'');
@@ -32,6 +33,7 @@ describe('Reader, verified identities and administration',()=>{
     owner=await applyVerifiedAccess(owner.id,{telegramId:'600001',username:'fixture_owner'});
     reader=await prisma.user.create({data:{telegramId:'fixture:reader',firstName:'Reader',lastName:'Fixture',email:'reader@example.com'}});
     helper=await prisma.user.create({data:{telegramId:'fixture:helper'}});
+    defaultReaderToken=generateToken(reader.id,reader.telegramId);
   },30000);
   afterAll(async()=>{
     vi.restoreAllMocks();Object.assign(config,saved);vi.unstubAllEnvs();
@@ -75,7 +77,8 @@ describe('Reader, verified identities and administration',()=>{
     const published=await call('/api/admin/books/'+book.id,'PUT',{...book,status:'PUBLISHED'},token);expect(published.status).toBe(200);
     const results=(await (await call('/api/library/search?q='+encodeURIComponent('درباره تمركز از کتاب پیدا کن'))).json()).results;
     expect(results[0]).toMatchObject({bookId:book.id,number:7,heading:'تمرکز موقع مطالعه'});expect(results[0].content).toContain('تلفن');
-    expect((await call(uploaded.asset.url)).status).toBe(200);
+    const playable=(await(await call('/api/library/'+book.id+'/pages/7')).json()).page.audioUrl;
+    expect((await call(playable,'GET',undefined,defaultReaderToken)).status).toBe(200);
     const audioPages=(await (await call('/api/library/'+book.id)).json()).book.pages;expect(audioPages.find((page:any)=>page.number===7).hasAudio).toBe(true);
     const readerToken=generateToken(reader.id,reader.telegramId);
     expect((await call('/api/library/progress','PUT',{bookId:book.id,pageNumber:7},readerToken)).status).toBe(200);
@@ -148,7 +151,7 @@ describe('Reader, verified identities and administration',()=>{
     expect((await call(`/api/admin/books/${target.id}/pages/1`,'PUT',{heading:'تصویر',content:'',keywords:'',imageAssetId:uploaded.asset.id,visualMode:'IMAGE'},token)).status).toBe(200);
     expect((await call(uploaded.asset.url)).status).toBe(404);
     expect((await call(`/api/admin/books/${target.id}/state`,'POST',{action:'publish'},token)).status).toBe(200);
-    const page=(await (await call(`/api/library/${target.id}/pages/1`)).json()).page;expect(page.imageUrl).toBe(uploaded.asset.url);expect(page.visualMode).toBe('IMAGE');expect((await call(uploaded.asset.url)).status).toBe(200);
+    const page=(await (await call(`/api/library/${target.id}/pages/1`)).json()).page;expect(page.imageUrl).toContain(uploaded.asset.url+'?expires=');expect(page.visualMode).toBe('IMAGE');expect((await call(uploaded.asset.url,'GET',undefined,token)).status).toBe(200);
     expect((await call(`/api/admin/books/${target.id}/state`,'POST',{action:'hide'},token)).status).toBe(200);expect((await call(uploaded.asset.url)).status).toBe(404);
   });
   it('binds Google login to PKCE, state and a verified ID token, then rejects replay',async()=>{
@@ -211,14 +214,14 @@ describe('Reader, verified identities and administration',()=>{
     await prisma.mediaAsset.create({data:{id,filename,kind:'document',mimeType:'application/pdf',size:25,createdById:owner.id}});
     const illustrated=await prisma.libraryBook.create({data:{title:'کتاب تصویر',status:'PUBLISHED',pages:{create:{number:1,heading:'تصویر کتاب',content:'متن تصویر کتاب',searchText:'تصویر کتاب',sourceAssetId:id,sourcePageNumber:1}}}});
     const ownerToken=generateToken(owner.id,owner.telegramId),readerToken=generateToken(reader.id,reader.telegramId);
-    const publicPage=(await (await call(`/api/library/${illustrated.id}/pages/1`)).json()).page;
-    expect(publicPage.sourceUrl).toBeNull();expect(publicPage.sourceImageUrl).toBe(`/api/media/${id}/pages/1/image`);
+    const publicPage=(await (await call(`/api/library/${illustrated.id}/pages/1`,'GET',undefined,readerToken)).json()).page;
+    expect(publicPage.sourceUrl).toBeNull();expect(publicPage.sourceImageUrl).toContain(`/api/media/${id}/pages/1/image?expires=`);
     expect((await call('/api/media/'+id)).status).toBe(403);expect((await call('/api/media/'+id,'GET',undefined,readerToken)).status).toBe(403);
     expect((await call('/api/media/'+id,'GET',undefined,ownerToken)).status).toBe(200);
     const results=(await (await call('/api/library/search?q='+encodeURIComponent('تصویر'))).json()).results;
     expect(results.find((page:any)=>page.bookId===illustrated.id).sourceUrl).toBeNull();
     const renderer=await import('../src/services/pageImageService'),render=vi.spyOn(renderer,'pdfPageImage').mockResolvedValue(image);
-    try{const preview=await call(publicPage.sourceImageUrl);expect(preview.status).toBe(200);expect(preview.headers.get('content-type')).toContain('image/png');}finally{render.mockRestore();}
+    try{const preview=await call(`/api/media/${id}/pages/1/image`,'GET',undefined,ownerToken);expect(preview.status).toBe(200);expect(preview.headers.get('content-type')).toContain('image/png');}finally{render.mockRestore();}
   });
   it('organizes nested categories and supports reversible hide, archive and trash',async()=>{
     const token=generateToken(owner.id,owner.telegramId);
