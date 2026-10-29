@@ -39,7 +39,7 @@ export async function adminBook(req: AuthRequest, res: Response, next: NextFunct
     const id = positiveId(req.params.id);
     const book = await prisma.libraryBook.findUnique({ where: { id }, include: { pages: { select:{id:true,number:true,heading:true},orderBy: { number: 'asc' } } } });
     if (!book) throw new HttpError(404, 'کتاب پیدا نشد.');
-    if (req.method === 'GET') { res.json({ book: bookJson(book), pages: book.pages.map(pageJson) }); return; }
+    if (req.method === 'GET') { res.json({ book: bookJson(book), pages: book.pages.map(page=>pageJson(page)) }); return; }
     if (req.method === 'DELETE') {
       await prisma.libraryBook.update({ where: { id }, data: { status: 'TRASH',deletedAt:new Date() } });
       res.json({ ok: true }); return;

@@ -6,7 +6,7 @@ export class BookAudioQueue<T>{
  private revision=0;private active=false;private played=0;
  index=-1;loading=false;
  constructor(readonly pages:number[],private callbacks:BookQueueCallbacks<T>){}
- start(){this.active=true;this.played=0;return this.move(0);}
+ start(fromNumber?:number){this.active=true;this.played=0;const index=fromNumber===undefined?0:this.pages.findIndex(number=>number>=fromNumber);return this.move(index<0?this.pages.length:index);}
  stop(){this.active=false;this.loading=false;this.revision++;}
  next(){return this.active?this.move(this.index+1):Promise.resolve();}
  previous(){return this.active?this.move(Math.max(0,this.index-1)):Promise.resolve();}

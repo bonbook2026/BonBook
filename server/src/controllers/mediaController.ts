@@ -11,6 +11,7 @@ import { cookieValue, SESSION_COOKIE } from '../services/sessionService';
 import { detectMedia } from '../services/mediaService';
 import {pdfPageImage} from '../services/pageImageService';
 import {isPublicHeroMedia} from '../services/libraryHeroService';
+import {requestIsAdmin} from '../middleware/admin';
 
 export async function uploadMedia(req: AuthRequest, res: Response, next: NextFunction) {
   try {
@@ -53,6 +54,7 @@ async function accessibleMedia(req:Request){
 export async function readMedia(req: Request, res: Response, next: NextFunction) {
   try {
     const {media,published}=await accessibleMedia(req);
+    if(media.kind==='document'&&!media.mimeType.startsWith('image/')&&!await requestIsAdmin(req))throw new HttpError(403,'دسترسی به فایل اصلی کتاب فقط برای مدیریت فعال است.');
     res.setHeader('Content-Type', media.mimeType);
     res.setHeader('Cache-Control', published ? 'private, no-cache' : 'private, no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');

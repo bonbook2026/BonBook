@@ -1,6 +1,13 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from './auth';
 import prisma from '../lib/prisma';
+import {verifiedRateLimitAccount} from './rateLimiter';
+
+export async function requestIsAdmin(req:Request){
+  const id=verifiedRateLimitAccount(req);
+  const user=id?await prisma.user.findUnique({where:{id},select:{role:true}}):null;
+  return Boolean(user&&['OWNER','ADMIN'].includes(user.role));
+}
 
 export async function requireAdmin(req: AuthRequest, res: Response, next: NextFunction) {
   try {

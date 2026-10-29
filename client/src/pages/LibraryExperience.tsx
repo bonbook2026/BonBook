@@ -10,17 +10,21 @@ import {useAuth} from '../hooks/useAuth';
 import {useTheme} from '../hooks/useTheme';
 import {savedBookIds} from '../utils/library';
 import {LibraryHeroSettings,defaultLibraryHero} from '../types/siteSettings';
+import {DEVICE_HISTORY_KEY,deviceReadingHistory,deviceLibraryResume} from '../utils/readingProgress';
 
 function loadSaved(key:string){try{return savedBookIds(localStorage.getItem(key));}catch{return [];}}
 const fa=(value:number)=>value.toLocaleString('fa-IR');
 export function Library(){
   const {user}=useAuth(),{theme}=useTheme(),savedKey=`bonbook_saved_books_${user?.id||'guest'}`;
   const [books,setBooks]=useState<LibraryBook[]>([]),[category,setCategory]=useState<string|null>(null),[savedOnly,setSavedOnly]=useState(false),[saved,setSaved]=useState<number[]>(()=>loadSaved(savedKey));
-  const [loading,setLoading]=useState(true),[error,setError]=useState(''),[retry,setRetry]=useState(0),[resume,setResume]=useState<{book:LibraryBook;pageNumber:number}|null>(null);
+  const [loading,setLoading]=useState(true),[error,setError]=useState(''),[retry,setRetry]=useState(0),[serverResume,setServerResume]=useState<{book:LibraryBook;pageNumber:number}|null>(null);
   const hero=useRef<LibraryHeroControls>(null),[heroConfig,setHeroConfig]=useState<LibraryHeroSettings>(defaultLibraryHero);
   useEffect(()=>{let live=true;setLoading(true);setError('');void Promise.all([api.library.list(),api.site.hero()]).then(([result,appearance])=>{if(live){setHeroConfig(appearance.hero);setBooks(result.books);setLoading(false);}}).catch(error=>{if(live){setError(error.message);setLoading(false);}});return()=>{live=false;};},[retry]);
-  useEffect(()=>{let live=true;setResume(null);if(user)void api.library.progress().then(result=>{if(live)setResume(result.progress[0]||null);}).catch(()=>{});return()=>{live=false;};},[user?.id]);
+  useEffect(()=>{let live=true;setServerResume(null);if(user)void api.library.progress().then(result=>{if(live)setServerResume(result.progress[0]||null);}).catch(()=>{});return()=>{live=false;};},[user?.id]);
   useEffect(()=>{setSaved(loadSaved(savedKey));const sync=(event:StorageEvent)=>{if(event.key===savedKey)setSaved(savedBookIds(event.newValue));};window.addEventListener('storage',sync);return()=>window.removeEventListener('storage',sync);},[savedKey]);
+  const [history,setHistory]=useState(deviceReadingHistory);
+  useEffect(()=>{const sync=()=>setHistory(deviceReadingHistory()),storage=(event:StorageEvent)=>{if(event.key===DEVICE_HISTORY_KEY)sync();};window.addEventListener('storage',storage);window.addEventListener('bonbook:reading-progress',sync);return()=>{window.removeEventListener('storage',storage);window.removeEventListener('bonbook:reading-progress',sync);};},[]);
+  const resume=deviceLibraryResume(books,history)||serverResume;
   const categories=[...new Set(books.map(book=>book.category).filter(Boolean))],filtered=books.filter(book=>(!category||book.category===category)&&(!savedOnly||saved.includes(book.id)));
   const featured=books.find(book=>book.id===resume?.book.id)||books[0]||null;
   const toggleSaved=(id:number)=>setSaved(current=>{const next=current.includes(id)?current.filter(value=>value!==id):[...current,id].slice(-1000);try{localStorage.setItem(savedKey,JSON.stringify(next));}catch{}return next;});

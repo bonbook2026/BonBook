@@ -23,3 +23,8 @@ test('failed loads wait for retry instead of falling back to synthesized text',a
  let attempts=0;const errors=[],played=[];const queue=new BookAudioQueue([4],{load:async number=>{if(++attempts===1)throw Error('offline');return number;},loading:()=>{},play:number=>played.push(number),complete:()=>{},error:(_error,number)=>errors.push(number)});
  await queue.start();assert.deepEqual(errors,[4]);assert.deepEqual(played,[]);await queue.retry();assert.deepEqual(played,[4]);
 });
+test('continuous listening begins at the current page and skips gaps without restarting earlier recordings',async()=>{
+ const played=[],completed=[];const queue=new BookAudioQueue([2,4,10],{load:async number=>number,loading:()=>{},play:number=>played.push(number),complete:count=>completed.push(count),error:()=>assert.fail('unexpected error')});
+ await queue.start(3);assert.deepEqual(played,[4]);await queue.next();assert.deepEqual(played,[4,10]);await queue.next();assert.deepEqual(completed,[2]);
+ played.length=0;completed.length=0;await queue.start(11);assert.deepEqual(played,[]);assert.deepEqual(completed,[0]);
+});

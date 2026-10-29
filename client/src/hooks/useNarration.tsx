@@ -37,15 +37,15 @@ function useNarrationState(){
   };next();
  };
  const play=(target:NarrationTarget,rate=current.current.rate)=>{stop();startTarget(target,rate);};
- const playBook=(book:LibraryBook)=>{
+ const playBook=(book:LibraryBook,fromNumber?:number,preloadedPage?:LibraryPage)=>{
   stop();publish({target:null});const pages=recordedPages(book.pages||[]);if(!pages.length){publish({error:'این کتاب هنوز ویس ضبط‌شده ندارد.'});return;}
   const playback=new BookAudioQueue<NarrationTarget>(pages,{
-   load:async number=>{const {page}=await api.library.page(book.id,number),url=mediaUrl(page.audioUrl);return url?{bookId:book.id,number,title:book.title,content:page.content,language:book.language,audioUrl:url,audioCues:page.audioCues,audioCueMode:page.audioCueMode,page}:null;},
+   load:async number=>{const page=preloadedPage?.bookId===book.id&&preloadedPage.number===number?preloadedPage:(await api.library.page(book.id,number)).page,url=mediaUrl(page.audioUrl);return url?{bookId:book.id,number,title:book.title,content:page.content,language:book.language,audioUrl:url,audioCues:page.audioCues,audioCueMode:page.audioCueMode,page}:null;},
    loading:(index,total)=>{halt();publish({status:bookPaused.current?'paused':'loading',mode:'book',playlist:{bookId:book.id,index,total,completed:false},error:null,offset:-1,position:0,elapsedSeconds:0,durationSeconds:0});},
    play:(target,index,total)=>{startTarget(target,current.current.rate,{bookId:book.id,index,total,completed:false},()=>{if(queue.current===playback)void playback.next();},bookPaused.current);},
-   complete:played=>{halt();publish({status:'idle',position:100,offset:-1,playlist:{bookId:book.id,index:Math.max(0,pages.length-1),total:pages.length,completed:true},error:played?null:'ویس قابل پخشی در این کتاب در دسترس نیست.'});},
+   complete:played=>{halt();publish({status:'idle',position:100,offset:-1,playlist:{bookId:book.id,index:Math.max(0,pages.length-1),total:pages.length,completed:true},error:played?null:'از این صفحه به بعد ویسی در دسترس نیست؛ می‌توانی پخش را از ابتدای کتاب شروع کنی.'});},
    error:(_error,number)=>{halt();publish({status:'paused',error:`دریافت ویس صفحهٔ ${number.toLocaleString('fa-IR')} انجام نشد؛ دوباره پخش کن یا ویس بعدی را بزن.`});}
-  });queue.current=playback;void playback.start();
+  });queue.current=playback;void playback.start(fromNumber);
  };
  const pause=()=>{bookPaused.current=true;audio.current?.pause();window.speechSynthesis?.pause();publish({status:'paused'});};
  const resume=()=>{

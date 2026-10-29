@@ -12,12 +12,12 @@ export function ReaderSheet({page,title,large=false}:{page:LibraryPage;title:str
     <div className={'rx-text-page'+(large?' rx-text-page-large':'')}>
       <span className="rx-text-page-title">{title}</span><h2>{page.heading||`صفحهٔ ${page.number.toLocaleString('fa-IR')}`}</h2>
       <p>{page.content||'این صفحه متنی ندارد.'}</p><span className="rx-text-page-number">{page.number.toLocaleString('fa-IR')}</span>
-      {url&&failed===url&&<small>تصویر بارگذاری نشد. متن و فایل اصلی در دسترس‌اند.</small>}
+      {url&&failed===url&&<small>تصویر بارگذاری نشد؛ می‌توانی متن این صفحه را بخوانی.</small>}
     </div>;
 }
 
-interface SpreadProps{page:LibraryPage;facing:LibraryPage|null;hasFacing:boolean;title:string;single:boolean;onZoom:()=>void;onFacing:()=>void}
-export function ReaderBook({page,facing,hasFacing,title,single,onZoom,onFacing}:SpreadProps){
+interface SpreadProps{page:LibraryPage;facing:LibraryPage|null;hasFacing:boolean;title:string;single:boolean;onZoom:()=>void;onFacing:()=>void;zoomLabel?:string}
+export function ReaderBook({page,facing,hasFacing,title,single,onZoom,onFacing,zoomLabel='بزرگ‌نمایی صفحهٔ جاری'}:SpreadProps){
   const previous=useRef<{page:LibraryPage;facing:LibraryPage|null}|null>(null);
   const [turn,setTurn]=useState<{direction:'next'|'previous';front:LibraryPage;back:LibraryPage}|null>(null);
   useLayoutEffect(()=>{
@@ -30,7 +30,7 @@ export function ReaderBook({page,facing,hasFacing,title,single,onZoom,onFacing}:
   useEffect(()=>{previous.current={page,facing};},[page,facing]);
   return <div className={'rx-book-stage'+(single?' rx-single':'')}><div className="rx-book-object">
     <div className="rx-book-edge" aria-hidden="true"/><div className="rx-book-spread">
-      <button type="button" className="rx-paper-page rx-current-page" aria-label="بزرگ‌نمایی صفحهٔ جاری" onClick={onZoom}><ReaderSheet page={page} title={title}/><span className="rx-paper-sheen"/></button>
+      <button type="button" className="rx-paper-page rx-current-page" aria-label={zoomLabel} onClick={onZoom}><ReaderSheet page={page} title={title}/><span className="rx-paper-sheen"/></button>
       <button type="button" className="rx-paper-page rx-facing-page" aria-label={hasFacing?'رفتن به صفحهٔ روبه‌رو':'پایان کتاب'} disabled={!hasFacing} onClick={onFacing}>
         {facing?<ReaderSheet page={facing} title={title}/>:<div className="rx-end-page"><span>✳</span><strong>{hasFacing?'صفحهٔ بعد':'هر پایان، یک آغاز تازه.'}</strong><small dir="ltr">BonBook</small></div>}<span className="rx-paper-sheen"/>
       </button>

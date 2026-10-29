@@ -197,9 +197,28 @@ describe('Reader, verified identities and administration',()=>{
     expect((await call('/api/admin/imports/'+job.id+'/apply','POST',{startPage:7},token)).status).toBe(409);
     const applied=await call('/api/admin/imports/'+job.id+'/apply','POST',{startPage:10},token);expect(applied.status).toBe(200);expect((await applied.json()).added).toBeGreaterThan(2);
     expect((await (await call('/api/library/'+book.id+'/pages/7')).json()).page.content).toContain('تلفن');
-    expect((await (await call('/api/library/'+book.id+'/pages/10')).json()).page.sourceUrl).toBe('/api/media/'+source.id);
+    expect((await (await call('/api/library/'+book.id+'/pages/10')).json()).page.sourceUrl).toBeNull();
+    expect((await (await call('/api/library/'+book.id+'/pages/10','GET',undefined,token)).json()).page.sourceUrl).toBe('/api/media/'+source.id);
+    expect((await call('/api/media/'+source.id)).status).toBe(403);
+    expect((await call('/api/media/'+source.id,'GET',undefined,token)).status).toBe(200);
     const listing=(await (await call('/api/library/'+book.id)).json()).book.pages;expect(listing.find((page:any)=>page.number===7).hasAudio).toBe(true);expect(listing.find((page:any)=>page.number===10).hasAudio).toBe(false);
     expect((await (await call('/api/admin/imports/'+job.id+'/apply','POST',{startPage:10},token)).json()).added).toBe(0);
+  });
+  it('keeps original PDFs administrator-only while serving published page images and searchable text',async()=>{
+    const id=crypto.randomUUID(),filename=id+'.pdf',image=path.join(config.mediaDirectory,id+'.png');
+    fs.writeFileSync(path.join(config.mediaDirectory,filename),'%PDF-1.4\nfixture original');
+    fs.writeFileSync(image,Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jV4cAAAAASUVORK5CYII=','base64'));
+    await prisma.mediaAsset.create({data:{id,filename,kind:'document',mimeType:'application/pdf',size:25,createdById:owner.id}});
+    const illustrated=await prisma.libraryBook.create({data:{title:'کتاب تصویر',status:'PUBLISHED',pages:{create:{number:1,heading:'تصویر کتاب',content:'متن تصویر کتاب',searchText:'تصویر کتاب',sourceAssetId:id,sourcePageNumber:1}}}});
+    const ownerToken=generateToken(owner.id,owner.telegramId),readerToken=generateToken(reader.id,reader.telegramId);
+    const publicPage=(await (await call(`/api/library/${illustrated.id}/pages/1`)).json()).page;
+    expect(publicPage.sourceUrl).toBeNull();expect(publicPage.sourceImageUrl).toBe(`/api/media/${id}/pages/1/image`);
+    expect((await call('/api/media/'+id)).status).toBe(403);expect((await call('/api/media/'+id,'GET',undefined,readerToken)).status).toBe(403);
+    expect((await call('/api/media/'+id,'GET',undefined,ownerToken)).status).toBe(200);
+    const results=(await (await call('/api/library/search?q='+encodeURIComponent('تصویر'))).json()).results;
+    expect(results.find((page:any)=>page.bookId===illustrated.id).sourceUrl).toBeNull();
+    const renderer=await import('../src/services/pageImageService'),render=vi.spyOn(renderer,'pdfPageImage').mockResolvedValue(image);
+    try{const preview=await call(publicPage.sourceImageUrl);expect(preview.status).toBe(200);expect(preview.headers.get('content-type')).toContain('image/png');}finally{render.mockRestore();}
   });
   it('organizes nested categories and supports reversible hide, archive and trash',async()=>{
     const token=generateToken(owner.id,owner.telegramId);
