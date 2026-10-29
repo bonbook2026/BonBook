@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import crypto from 'crypto';
 import path from 'path';
 import {Response,NextFunction} from 'express';
+import {Prisma} from '@prisma/client';
 import prisma from '../lib/prisma';
 import {AuthRequest} from '../middleware/auth';
 import {HttpError} from '../lib/httpError';
@@ -12,6 +13,25 @@ import {decodePageText,parseNumberedTexts,planTextChanges,textChangeSummary,text
 const summarize=(job:any,includeItems=true)=>({id:job.id,bookId:job.bookId,sourceNames:JSON.parse(job.sourceNames),pageOffset:job.pageOffset,status:job.status,createdAt:job.createdAt,appliedAt:job.appliedAt,...(includeItems?{items:(JSON.parse(job.items) as TextChange[]).map(textChangeSummary)}:{})});
 async function requireBook(bookId:number,tx:any=prisma){const book=await tx.libraryBook.findUnique({where:{id:bookId}});if(!book||book.status==='TRASH')throw new HttpError(404,'کتاب در دسترس نیست.');return book;}
 async function importForBook(bookId:number,id:string,tx:any=prisma){await requireBook(bookId,tx);const job=await tx.bookTextImport.findFirst({where:{id,bookId}});if(!job)throw new HttpError(404,'پیش‌نمایش متن پیدا نشد.');return job;}
+async function currentPages(tx:any,changes:TextChange[]){
+ const result=new Map<number,any>();
+ for(let start=0;start<changes.length;start+=400)for(const page of await tx.libraryPage.findMany({where:{id:{in:changes.slice(start,start+400).map(item=>item.pageId!)}}}))result.set(page.id,page);
+ return result;
+}
+async function writeTextChanges(tx:any,changes:TextChange[],pages:Map<number,any>,undo=false){
+ // Bound statements below SQLite's 999-parameter floor. Hundreds of per-row
+ // round trips can starve other connections while an interactive transaction is open.
+ for(let start=0;start<changes.length;start+=75){
+  const chunk=changes.slice(start,start+75),values=chunk.map(item=>{const page=pages.get(item.pageId!)!,content=undo?item.beforeContent:item.content;return {id:page.id,content,cues:undo?item.beforeCues:item.cues,mode:undo?item.beforeMode:item.mode,search:normalizePersian(page.heading+' '+page.keywords+' '+content)};});
+  await tx.$executeRaw(Prisma.sql`UPDATE library_pages SET
+   content = CASE id ${Prisma.join(values.map(v=>Prisma.sql`WHEN ${v.id} THEN ${v.content}`),' ')} END,
+   search_text = CASE id ${Prisma.join(values.map(v=>Prisma.sql`WHEN ${v.id} THEN ${v.search}`),' ')} END,
+   audio_cues = CASE id ${Prisma.join(values.map(v=>Prisma.sql`WHEN ${v.id} THEN ${v.cues}`),' ')} END,
+   audio_cue_mode = CASE id ${Prisma.join(values.map(v=>Prisma.sql`WHEN ${v.id} THEN ${v.mode}`),' ')} END,
+   updated_at = ${Date.now()} WHERE id IN (${Prisma.join(values.map(v=>v.id))})`);
+  await tx.audioAlignment.updateMany({where:{pageId:{in:values.map(v=>v.id)},status:{in:['QUEUED','PROCESSING']}},data:{status:'CANCELED',warning:undo?'متن به نسخهٔ قبل بازگردانده شد.':'متن آماده جایگزین شد؛ زمان‌بندی قبلی حفظ و محل متن بازتطبیق شد.'}});
+ }
+}
 export async function previewPageTexts(req:AuthRequest,res:Response,next:NextFunction){
  const files=(req.files||[]) as Express.Multer.File[];
  try{
@@ -47,13 +67,9 @@ export async function applyPageTexts(req:AuthRequest,res:Response,next:NextFunct
   const job=await importForBook(bookId,id,tx);if(job.status!=='PREVIEW')throw new HttpError(409,'این پیش‌نمایش قبلاً ثبت یا بازگردانی شده است.');
   const items=JSON.parse(job.items) as TextChange[],selected=new Set<number>(numbers),changes=items.filter(item=>selected.has(item.sourceNumber));
   if(changes.length!==selected.size||changes.some(item=>!textChangeSummary(item).canApply))throw new HttpError(400,'صفحهٔ خالی، ناموجود یا بدون تغییر قابل جایگزینی نیست.');
-  for(const item of changes){const page=await tx.libraryPage.findUnique({where:{id:item.pageId!}});if(!page||textPageHash(page)!==item.beforeHash)throw new HttpError(409,`صفحهٔ ${item.number} پس از پیش‌نمایش تغییر کرده است؛ دوباره پیش‌نمایش بگیرید. هیچ متنی ثبت نشد.`);}
-  for(const item of changes){
-   const page=await tx.libraryPage.findUniqueOrThrow({where:{id:item.pageId!}});
-   await tx.libraryPage.update({where:{id:page.id},data:{content:item.content,audioCues:item.cues,audioCueMode:item.mode,searchText:normalizePersian(page.heading+' '+page.keywords+' '+item.content)}});
-   await tx.audioAlignment.updateMany({where:{pageId:page.id,status:{in:['QUEUED','PROCESSING']}},data:{status:'CANCELED',warning:'متن آماده جایگزین شد؛ زمان‌بندی قبلی حفظ و محل متن بازتطبیق شد.'}});
-   item.applied=true;
-  }
+  const pages=await currentPages(tx,changes);
+  for(const item of changes){const page=pages.get(item.pageId!);if(!page||textPageHash(page)!==item.beforeHash)throw new HttpError(409,`صفحهٔ ${item.number} پس از پیش‌نمایش تغییر کرده است؛ دوباره پیش‌نمایش بگیرید. هیچ متنی ثبت نشد.`);}
+  await writeTextChanges(tx,changes,pages);for(const item of changes)item.applied=true;
   const updated=await tx.bookTextImport.update({where:{id},data:{items:JSON.stringify(items),status:'APPLIED',appliedAt:new Date()}});
   await tx.libraryBook.update({where:{id:bookId},data:{updatedAt:new Date()}});
   return {import:summarize(updated),updated:changes.length};
@@ -64,12 +80,9 @@ export async function undoPageTexts(req:AuthRequest,res:Response,next:NextFuncti
  const result=await prisma.$transaction(async tx=>{
   const job=await importForBook(bookId,id,tx);if(job.status!=='APPLIED')throw new HttpError(409,'فقط جایگزینی ثبت‌شده قابل بازگردانی است.');
   const items=JSON.parse(job.items) as TextChange[],changes=items.filter(item=>item.applied);
-  for(const item of changes){const page=await tx.libraryPage.findUnique({where:{id:item.pageId!}});if(!page||textPageHash(page)!==item.afterHash)throw new HttpError(409,`صفحهٔ ${item.number} بعداً ویرایش شده است؛ بازگردانی دسته‌ای متوقف شد تا ویرایش تازه از بین نرود.`);}
-  for(const item of changes){
-   const page=await tx.libraryPage.findUniqueOrThrow({where:{id:item.pageId!}});
-   await tx.libraryPage.update({where:{id:page.id},data:{content:item.beforeContent,audioCues:item.beforeCues,audioCueMode:item.beforeMode,searchText:normalizePersian(page.heading+' '+page.keywords+' '+item.beforeContent)}});
-   await tx.audioAlignment.updateMany({where:{pageId:page.id,status:{in:['QUEUED','PROCESSING']}},data:{status:'CANCELED',warning:'متن به نسخهٔ قبل بازگردانده شد.'}});
-  }
+  const pages=await currentPages(tx,changes);
+  for(const item of changes){const page=pages.get(item.pageId!);if(!page||textPageHash(page)!==item.afterHash)throw new HttpError(409,`صفحهٔ ${item.number} بعداً ویرایش شده است؛ بازگردانی دسته‌ای متوقف شد تا ویرایش تازه از بین نرود.`);}
+  await writeTextChanges(tx,changes,pages,true);
   const updated=await tx.bookTextImport.update({where:{id},data:{status:'UNDONE'}});await tx.libraryBook.update({where:{id:bookId},data:{updatedAt:new Date()}});
   return {import:summarize(updated),restored:changes.length};
  },{timeout:30000});res.json(result);

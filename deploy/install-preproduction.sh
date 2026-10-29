@@ -64,6 +64,8 @@ runuser -u bonbook -- env NPM_CONFIG_CACHE="$root/shared/npm-cache" NODE_ENV=dev
     npm test --prefix server
     python3 -m unittest discover -s server/speech -p test_alignment.py
     NODE_ENV=production npm run build:preproduction
+    # WAL lets reading, narration polling and admin imports share the SQLite file.
+    python3 -c "import sqlite3; c=sqlite3.connect(\"/srv/bonbook-preproduction/shared/data/bonbook.db\",timeout=15); mode=c.execute(\"PRAGMA journal_mode=WAL\").fetchone()[0]; c.close(); assert mode.lower()==\"wal\""
     cd server
     DATABASE_URL=file:/srv/bonbook-preproduction/shared/data/bonbook.db ./node_modules/.bin/prisma migrate deploy
     DATABASE_URL=file:/srv/bonbook-preproduction/shared/data/bonbook.db node dist/seedLibrary.js

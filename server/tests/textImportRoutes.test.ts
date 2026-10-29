@@ -73,4 +73,24 @@ describe('Prepared text preview, guarded replacement and undo',()=>{
   const {import:job}=await(await preview('=== Page 1 ===\nجهان، یکی است.\nانسان زندگی را تجربه می‌کند.\nمتن تازه اضافه شد.')).json();expect((await call(`/api/admin/books/${book.id}/text-imports/${job.id}/apply`,{pages:[1]})).status).toBe(200);
   await expect(applyAlignment(alignment.id)).rejects.toThrow('متن یا ویس');
  });
+ it('commits multiple SQL chunks while another WAL connection continues reading, and can undo the whole batch',async()=>{
+  await prisma.$queryRawUnsafe('PRAGMA journal_mode=WAL');
+  const target=await prisma.libraryBook.create({data:{title:'هم‌زمانی کتاب بزرگ',pages:{create:Array.from({length:180},(_,i)=>({number:i+1,content:'جهان یکی است.',heading:'عنوان محفوظ'}))}}});
+  const source=Array.from({length:180},(_,i)=>`=== Page ${i+1} ===\nجهان، یکی است.`).join('\n');
+  const {import:job}=await(await preview(source,'full.txt',target.id)).json();expect(job.items.every((p:any)=>p.status==='READY')).toBe(true);
+  const {PrismaClient}=await import('@prisma/client'),readerConnection=new PrismaClient({datasources:{db:{url:process.env.DATABASE_URL+'?connection_limit=1'}}});
+  // Prisma interactive transactions use BEGIN IMMEDIATE even for reads. A
+  // genuinely deferred, one-connection reader models a book-page snapshot.
+  await readerConnection.$executeRawUnsafe('BEGIN DEFERRED');
+  await readerConnection.libraryPage.findFirst({where:{bookId:target.id}});
+  const changeRequest=call(`/api/admin/books/${target.id}/text-imports/${job.id}/apply`,{pages:job.items.map((p:any)=>p.sourceNumber)});
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  try{
+   const response=await Promise.race([changeRequest,new Promise<null>(resolve=>{timer=setTimeout(()=>resolve(null),5000);})]);
+   expect(response,'A reader must not block a whole-book text commit').not.toBeNull();expect(response!.status).toBe(200);expect((await response!.json()).updated).toBe(180);
+  }finally{if(timer)clearTimeout(timer);await readerConnection.$executeRawUnsafe('ROLLBACK');await readerConnection.$disconnect();await changeRequest;}
+  expect((await call(`/api/admin/books/${target.id}/text-imports/${job.id}/undo`,{})).status).toBe(200);
+  expect(await prisma.libraryPage.count({where:{bookId:target.id,content:'جهان یکی است.'}})).toBe(180);
+  const writers=await Promise.allSettled(Array.from({length:8},()=>prisma.$transaction(async(tx:any)=>{await tx.libraryBook.update({where:{id:target.id},data:{updatedAt:new Date()}});return tx.libraryPage.count({where:{bookId:target.id}});})));expect(writers.every(result=>result.status==='fulfilled')).toBe(true);
+ });
 });
