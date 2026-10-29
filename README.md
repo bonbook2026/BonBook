@@ -68,6 +68,14 @@ Do not commit real credentials or local databases. `.env.example` contains confi
 
 ## Validation and builds
 
+The reader paints authenticated, account-stamped page images onto canvas rather
+than exposing an image/link hit target to mobile long-press menus. Context menus
+and dragging are suppressed within the book; page taps and zoom still work.
+Media requests retain session-bound grants, cookies and no-store caching. This
+does not conceal requests from browser developer tools or block operating-system
+screenshots, recording software or authorized extensions. Telegram Mini Apps do
+not expose a documented API for setting the host app's screen-capture protection.
+
 ```powershell
 npm test
 npm run build:client

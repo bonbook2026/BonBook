@@ -2,6 +2,7 @@ import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {LibraryPage} from '../types';
 import {mediaUrl} from '../services/api';
 import {ReaderAccountStamp} from './ReaderProtection';
+import {ReaderPageCanvas} from './ReaderPageCanvas';
 
 export function readerPageImage(page:LibraryPage){
   return page.visualMode==='TEXT'?null:mediaUrl(page.imageUrl||page.sourceImageUrl||null);
@@ -9,7 +10,7 @@ export function readerPageImage(page:LibraryPage){
 
 export function ReaderSheet({page,title,large=false}:{page:LibraryPage;title:string;large?:boolean}){
   const url=readerPageImage(page),[failed,setFailed]=useState<string|null>(null);
-  return url&&failed!==url?<img src={url} alt={`${title}، تصویر صفحهٔ ${page.number.toLocaleString('fa-IR')}`} draggable={false} onError={()=>setFailed(url)} decoding="async"/>:
+  return url&&failed!==url?<ReaderPageCanvas key={url} url={url} label={`${title}، تصویر صفحهٔ ${page.number.toLocaleString('fa-IR')}`} onError={()=>setFailed(url)}/>:
     <div className={'rx-text-page'+(large?' rx-text-page-large':'')}>
       <span className="rx-text-page-title">{title}</span><h2>{page.heading||`صفحهٔ ${page.number.toLocaleString('fa-IR')}`}</h2>
       <p>{page.content||'این صفحه متنی ندارد.'}</p><span className="rx-text-page-number">{page.number.toLocaleString('fa-IR')}</span>
@@ -30,7 +31,7 @@ export function ReaderBook({page,facing,hasFacing,title,single,onZoom,onFacing,z
     const timer=window.setTimeout(()=>setTurn(null),720);return()=>window.clearTimeout(timer);
   },[page.bookId,page.number]);
   useEffect(()=>{previous.current={page,facing};},[page,facing]);
-  return <div className={'rx-book-stage'+(single?' rx-single':'')}><div className="rx-book-object">
+  return <div className={'rx-book-stage'+(single?' rx-single':'')} onContextMenu={event=>event.preventDefault()} onDragStart={event=>event.preventDefault()}><div className="rx-book-object">
     <div className="rx-book-edge" aria-hidden="true"/><div className="rx-book-spread">
       <button type="button" className="rx-paper-page rx-current-page" aria-label={zoomLabel} onClick={onZoom}><ReaderSheet page={page} title={title}/><span className="rx-paper-sheen"/></button>
       <button type="button" className="rx-paper-page rx-facing-page" aria-label={hasFacing?'رفتن به صفحهٔ روبه‌رو':'پایان کتاب'} disabled={!hasFacing} onClick={onFacing}>
