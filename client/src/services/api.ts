@@ -181,7 +181,7 @@ export const api = {
     textImportPage:(bookId:number,id:string,sourcePage:number)=>request<{item:TextImportItem}>(`/admin/books/${bookId}/text-imports/${id}/pages/${sourcePage}`),
     previewTextImport:async(bookId:number,files:File[],pageOffset:number)=>{
       const body=new FormData();body.append('pageOffset',String(pageOffset));files.forEach(file=>body.append('files',file,file.name));
-      const response=await fetch(`${BASE_URL}/admin/books/${bookId}/text-imports`,{method:'POST',headers:authenticationHeaders(),body});
+      const response=await fetch(`${BASE_URL}/admin/media/text-import/${bookId}`,{method:'POST',headers:authenticationHeaders(),body});
       const result=await response.json().catch(()=>({error:'پیش‌نمایش متن انجام نشد. مجموع فایل‌ها باید حداکثر ۸ مگابایت باشد.'}));if(!response.ok)throw new ApiError(result.error,response.status);return result as {import:BookTextImport};
     },
     applyTextImport:(bookId:number,id:string,pages:number[])=>request<{import:BookTextImport;updated:number}>(`/admin/books/${bookId}/text-imports/${id}/apply`,{method:'POST',body:JSON.stringify({pages})}),

@@ -73,7 +73,8 @@ router.get('/books/:id/text-imports/:textImportId',getPageTexts);
 router.get('/books/:id/text-imports/:textImportId/pages/:sourcePage',getPageTexts);
 router.post('/books/:id/text-imports/:textImportId/apply',applyPageTexts);
 router.post('/books/:id/text-imports/:textImportId/undo',undoPageTexts);
-router.post('/books/:id/text-imports',(req,res,next)=>{
+// Large multipart bodies use the existing Nginx upload location; JSON routes stay at 1 MB.
+router.post('/media/text-import/:id',(req,res,next)=>{
  if(Number(req.get('content-length'))>10*1024*1024){next(new HttpError(413,'مجموع متن‌های ورودی باید حداکثر ۸ مگابایت باشد.'));return;}
  const directory=path.resolve(config.mediaDirectory,'../text-incoming');fs.mkdirSync(directory,{recursive:true,mode:0o700});
  multer({storage:multer.diskStorage({destination:directory,filename:(_req,_file,done)=>done(null,crypto.randomUUID()+'.upload')}),limits:{fileSize:8*1024*1024,files:2000,fields:1,fieldSize:32,parts:2001}}).array('files',2000)(req,res,error=>{

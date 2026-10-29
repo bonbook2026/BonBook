@@ -12,7 +12,7 @@ describe('Prepared text preview, guarded replacement and undo',()=>{
  const saved={nodeEnv:config.nodeEnv,mediaDirectory:config.mediaDirectory,jwtSecret:config.jwtSecret,frontendUrl:config.frontendUrl};
  let prisma:any,server:Server,base:string,token:string,readerToken:string,book:any,audioId:string;
  const call=(route:string,body?:unknown,credential=token)=>fetch(base+route,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+credential,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
- const preview=async(text:string,filename='full.txt',bookId=book.id)=>{const form=new FormData();form.append('pageOffset','0');form.append('files',new Blob([text],{type:'text/plain'}),filename);return fetch(`${base}/api/admin/books/${bookId}/text-imports`,{method:'POST',headers:{Authorization:'Bearer '+token},body:form});};
+ const preview=async(text:string,filename='full.txt',bookId=book.id)=>{const form=new FormData();form.append('pageOffset','0');form.append('files',new Blob([text],{type:'text/plain'}),filename);return fetch(`${base}/api/admin/media/text-import/${bookId}`,{method:'POST',headers:{Authorization:'Bearer '+token},body:form});};
  const unchanged=(p:any)=>[p.id,p.bookId,p.number,p.heading,p.keywords,p.audioAssetId,p.imageAssetId,p.sourceAssetId,p.sourcePageNumber,p.visualMode];
  beforeAll(async()=>{
   fs.mkdirSync(fixture,{recursive:true});fs.writeFileSync(database,'');vi.stubEnv('DATABASE_URL','file:'+database.replace(/\\/g,'/'));
@@ -35,6 +35,10 @@ describe('Prepared text preview, guarded replacement and undo',()=>{
   expect(job.items.map((p:any)=>p.status)).toEqual(['READY','EMPTY','MISSING']);expect(job.items[0].beforeContent).toBeUndefined();expect(job.items[0].canApply).toBe(true);
   expect(await prisma.libraryPage.findMany({where:{bookId:book.id},orderBy:{number:'asc'}})).toEqual(before);
   const detail=await(await call(`/api/admin/books/${book.id}/text-imports/${job.id}/pages/1`)).json();expect(detail.item.content).toContain('می‌کند');expect(detail.item.beforeContent).toContain('میکند');
+ });
+ it('accepts a complete text source above the ordinary JSON body limit through the media upload path',async()=>{
+  const text=Array.from({length:28},(_,i)=>`=== Page ${i+1} ===\n`+'گ'.repeat(20000)).join('\n');expect(Buffer.byteLength(text)).toBeGreaterThan(1024*1024);
+  const response=await preview(text);expect(response.status).toBe(201);expect((await response.json()).import.items).toHaveLength(28);
  });
  it('keeps media, identifiers, headings, contents, progress and every cue timestamp through apply and undo',async()=>{
   const before=await prisma.libraryPage.findMany({where:{bookId:book.id},orderBy:{number:'asc'}}),progress=await prisma.readingProgress.findMany(),contents=await prisma.bookContents.findMany();
