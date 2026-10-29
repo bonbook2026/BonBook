@@ -15,6 +15,7 @@ import {ReaderPlayback,ReaderPlaybackState} from '../components/ReaderPlayback';
 import {ReaderImmersive} from '../components/ReaderImmersive';
 import {resumeDevicePage,saveDeviceReading} from '../utils/readingProgress';
 import {useReaderProtection,ReaderAccountStamp} from '../components/ReaderProtection';
+import {journeySeekTarget} from '../utils/readingJourney';
 
 function preference(key:string,fallback:string){try{return localStorage.getItem(key)||fallback;}catch{return fallback;}}
 function remember(key:string,value:string){try{localStorage.setItem(key,value);}catch{/* Reading works without browser storage. */}}
@@ -75,6 +76,16 @@ export function Reader(){
   const heading=page?.heading||chapter?.title||`صفحهٔ ${fa(number)}`,offset=active&&audio.status!=='idle'?audio.offset:-1;
   const useCaptions=captions&&Boolean(page?.content)&&page?.visualMode!=='IMAGE',nextVoice=voices.find(n=>n>number),previousVoice=[...voices].reverse().find(n=>n<number);
   const audioMove=(direction:1|-1)=>{if(fullBook){if(direction>0)audio.nextBook();else audio.previousBook();}else{const target=direction>0?nextVoice:previousVoice;if(target!==undefined)go(target);}};
+  const journeyWasPlaying=useRef(false);
+  const beginJourneyDrag=()=>{journeyWasPlaying.current=audio.status==='playing'||audio.status==='loading';if(journeyWasPlaying.current)audio.pause();};
+  const cancelJourneyDrag=()=>{if(journeyWasPlaying.current)audio.resume();journeyWasPlaying.current=false;};
+  const seekJourney=async(position:number)=>{
+    const target=journeySeekTarget(position,book?.pages||[]);if(!book||!target)return;
+    journeyWasPlaying.current=false;setToc(false);setError('');
+    const voice=voices.find(value=>value>=target.number);
+    if(voice!==undefined){setContinuous(true);await audio.playBook(book,voice,undefined,voice===target.number?target.percent:0);}
+    else{audio.stop();navigate(`/read/${bookId}/${target.number}`);}
+  };
 
   const playback:ReaderPlaybackState|null=book?{book,page,number,heading,audio,active,fullBook,continuous,completed:Boolean(session?.completed),playing,loading,voices,voicePosition,previousVoice,nextVoice,play,move:audioMove,toggleContinuous,replay}:null;
   const isAdmin=user?.role==='OWNER'||user?.role==='ADMIN';
@@ -108,7 +119,7 @@ export function Reader(){
       </section>
     </main>}
     {!zoom&&playback&&<footer className="rx-player" aria-label="پخش‌کنندهٔ روایت کتاب"><ReaderPlayback state={playback}/></footer>}
-    <ReaderImmersive open={zoom} onClose={()=>setZoom(false)} book={book} page={page} visualPage={visualPage} facing={shownFacing} hasFacing={physicalNext!==undefined} number={number} heading={heading} night={theme==='night'} onTheme={()=>setTheme(theme==='night'?'paper':'night')} single={zoomSingle} onSingle={()=>setZoomSingle(value=>!value)} previous={previous} next={next} onGo={go} onFacing={()=>physicalNext!==undefined&&go(physicalNext)} offset={offset} terms={terms} playback={playback}/>
+    <ReaderImmersive open={zoom} onClose={()=>setZoom(false)} book={book} page={page} visualPage={visualPage} facing={shownFacing} hasFacing={physicalNext!==undefined} number={number} heading={heading} night={theme==='night'} onTheme={()=>setTheme(theme==='night'?'paper':'night')} single={zoomSingle} onSingle={()=>setZoomSingle(value=>!value)} previous={previous} next={next} onGo={go} onFacing={()=>physicalNext!==undefined&&go(physicalNext)} offset={offset} terms={terms} playback={playback} onJourneySeek={seekJourney} onJourneyDragStart={beginJourneyDrag} onJourneyDragCancel={cancelJourneyDrag}/>
 
   </div>;
 }

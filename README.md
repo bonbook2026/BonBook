@@ -68,6 +68,19 @@ Do not commit real credentials or local databases. `.env.example` contains confi
 
 ## Validation and builds
 
+Fullscreen reading includes a sky journey driven by the real page order and the
+current recording's playback percentage. The opening and closing two pages hold
+their sky state. The site's selected day/night theme determines the starting
+direction; the fullscreen control can invert it. Sparrows and owls exchange along
+the journey. Dragging the sun/moon pauses audio and previews locally, then loads
+and plays the selected position once on release. Recorded-page gaps advance to
+the next recording at its beginning; if none remains, the chosen page opens
+without invented audio. Canceling a drag resumes the prior playback state.
+
+The isolated forty-second concept remains available through
+`npm run preview:journey --prefix client`; it is a separate local Vite entry and
+does not supply production pages or audio.
+
 The reader paints authenticated, account-stamped page images onto canvas rather
 than exposing an image/link hit target to mobile long-press menus. Context menus
 and dragging are suppressed within the book; page taps and zoom still work.
