@@ -1,6 +1,8 @@
 import {forwardRef,useEffect,useId,useImperativeHandle,useRef,useState} from 'react';
 import {Link} from 'react-router-dom';
 import {Icon} from './Icon';
+import {BookSetupProgress,BookSetupStep,BookSetupStepId} from '../types';
+import {useBookSetupProgress} from '../hooks/useBookSetupProgress';
 import './book-setup-guide.css';
 
 type GuideStep={title:string;location:string;view:string;action:string;anchor?:string;instructions:string[];tip?:string};
@@ -40,13 +42,16 @@ const steps:GuideStep[]=[
   'شماره‌ها را با صفحه‌های واردشدهٔ همین کتاب تطبیق بده؛ اگر شمارهٔ چاپی با PDF فرق دارد، اختلاف را در ابزار فهرست تنظیم کن.',
   'ترتیب و زیرعنوان‌ها را بررسی کن و «ذخیرهٔ فهرست» را بزن. یک عنوان را در کتاب‌خوان انتخاب کن تا مطمئن شوی به صفحهٔ درست می‌رود.',
  ],tip:'ثبت فهرست اختیاری است، اما برای کتاب‌های بلند پیدا کردن فصل‌ها را خیلی راحت‌تر می‌کند.'},
- {title:'بازبینی و انتشار',location:'پیش‌نمایش کتاب ← تب «مشخصات و جلد»',view:'details',anchor:'book-publication-settings',action:'بازکردن وضعیت انتشار',instructions:[
+ {title:'انتشار کتاب',location:'پیش‌نمایش کتاب ← تب «مشخصات و جلد»',view:'details',anchor:'book-publication-settings',action:'بازکردن وضعیت انتشار',instructions:[
   'پیش‌نمایش کتاب را باز کن؛ روی جلد و پشت آن، چند صفحه از ابتدا و وسط و پایان، متن، فهرست و ویس‌ها را بررسی کن.',
   'پخش یک ویس و «پخش کامل» را امتحان کن و ببین زیرنویس، شمارهٔ صفحه و رفتن به روایت بعدی درست است.',
   'وقتی آماده شد، در «مشخصات و جلد»، گزینهٔ «نمایش کتاب برای کاربران» را روی «منتشرشده» بگذار و «ذخیرهٔ مشخصات و وضعیت» را بزن.',
   'کتابخانهٔ سایت را باز کن و نمایش کتاب را بررسی کن. برای آماده‌سازی بیشتر، وضعیت «پیش‌نویس» یا «مخفی» را انتخاب کن و ذخیره کن.',
  ],tip:'رفتن به مرحلهٔ بعد فقط راهنما را جلو می‌برد. فایل، متن، فهرست و وضعیت انتشار را در بخش مربوط به خودشان ثبت کن.'},
 ];
+const stepIds:BookSetupStepId[]=['metadata','pages','cover','text','audio','alignment','contents','publish'];
+const stepLabels=['مشخصات','صفحه‌ها','تصویر جلد','متن صفحه‌ها','ویس‌ها','زمان‌بندی صدا','فهرست','انتشار'];
+const statusLabels={done:'انجام‌شده',todo:'باقی‌مانده',working:'در حال انجام',review:'نیاز به بررسی',optional:'اختیاری'};
 const pdfInstructions=(prepared:boolean)=>[
  '«انتخاب فایل کتاب یا عکس صفحه‌ها» را بزن و PDF اصلی را انتخاب کن؛ هر نوبت تا ۳۰ مگابایت.',
  prepared?'چون متن آماده داری، در «روش خواندن فایل»، «فقط تصویر PDF یا عکس؛ بدون OCR» را انتخاب کن. تصویر صفحه‌ها از PDF وارد می‌شود و متن سالم را در مرحلهٔ «متن و زیرنویس» جدا وصل می‌کنی.':'در «روش خواندن فایل»، «خودکار؛ تشخیص نیاز به OCR» را انتخاب کن. برای PDF اسکن‌شده، متن با OCR استخراج می‌شود؛ برای فایل متنی، متن داخلی خوانده می‌شود.',
@@ -61,19 +66,42 @@ function preference(key:string,book:boolean,empty:boolean):GuideState{
  return fallback;
 }
 export interface BookSetupGuideHandle{show:()=>void}
-interface Props{bookId?:number;firstPage?:number;hasPages?:boolean;onGo?:(view:string,anchor?:string)=>void;onCreate?:()=>void}
-export const BookSetupGuide=forwardRef<BookSetupGuideHandle,Props>(function BookSetupGuide({bookId,firstPage,hasPages,onGo,onCreate},ref){
- const storageKey=`bonbook_admin_book_guide_${bookId||'catalog'}`,region=useId(),root=useRef<HTMLElement>(null);
+interface Props{bookId?:number;firstPage?:number;hasPages?:boolean;onGo?:(view:string,anchor?:string)=>void;onCreate?:()=>void;onPage?:(number:number)=>void}
+export const BookSetupGuide=forwardRef<BookSetupGuideHandle,Props>(function BookSetupGuide({bookId,firstPage,hasPages,onGo,onCreate,onPage},ref){
+ const storageKey=`bonbook_admin_book_guide_${bookId||'catalog'}`,region=useId(),root=useRef<HTMLElement>(null),list=useRef<HTMLDetailsElement>(null);
  const [state,setState]=useState(()=>preference(storageKey,Boolean(bookId),!hasPages));
+ const {progress,error,checking,refresh}=useBookSetupProgress(bookId),previous=useRef<BookSetupProgress|null>(null);
+ const saved=Object.fromEntries((progress?.steps||[]).map(step=>[step.id,step])) as Partial<Record<BookSetupStepId,BookSetupStep>>;
+ const nextIndex=progress?.nextStep?stepIds.indexOf(progress.nextStep):-1,currentSaved=saved[stepIds[state.step]];
  useEffect(()=>{try{localStorage.setItem(storageKey,JSON.stringify(state));}catch{}},[storageKey,state]);
- useImperativeHandle(ref,()=>({show:()=>{setState(old=>({...old,open:true}));window.requestAnimationFrame(()=>{root.current?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});root.current?.querySelector<HTMLElement>('h2')?.focus({preventScroll:true});});}}),[]);
- const select=(step:number)=>setState(old=>({...old,step})),current=steps[state.step],instructions=state.step===1?pdfInstructions(state.prepared):current.instructions;
+ useEffect(()=>{
+  if(!progress)return;const prior=previous.current;previous.current=progress;
+  setState(old=>{const id=stepIds[old.step],now=progress.steps.find(step=>step.id===id),before=prior?.steps.find(step=>step.id===id),next=progress.nextStep?stepIds.indexOf(progress.nextStep):-1;
+   return now?.status==='done'&&before?.status!=='done'&&next>=0&&next!==old.step?{...old,step:next}:old;
+  });
+ },[progress]);
+ const scrollGuide=()=>window.requestAnimationFrame(()=>{root.current?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});root.current?.querySelector<HTMLElement>('h2')?.focus({preventScroll:true});});
+ useImperativeHandle(ref,()=>({show:()=>{setState(old=>({...old,open:true}));scrollGuide();}}),[]);
+ const select=(step:number)=>{setState(old=>({...old,step}));if(list.current)list.current.open=false;};
+ const showNext=()=>{if(nextIndex<0)return;setState(old=>({...old,step:nextIndex,open:true}));if(list.current)list.current.open=false;scrollGuide();};
+ const current=steps[state.step],instructions=state.step===1?pdfInstructions(state.prepared):current.instructions;
  const action=()=>{if(!bookId){setState(old=>({...old,open:false}));onCreate?.();}else onGo?.(current.view,current.anchor);};
+ const icon=(step?:BookSetupStep,index=0)=><span className={`setup-step-icon setup-${step?.status||'unknown'}`} aria-hidden="true">{step?.status==='done'?'✓':step?.status==='working'?'…':step?.status==='review'?'!':step?.status==='optional'?'—':(index+1).toLocaleString('fa-IR')}</span>;
  return <section ref={root} className={`admin-book-guide${state.open?' is-open':''}`} aria-label="راهنمای مرحله‌به‌مرحلهٔ افزودن کتاب">
   <header><span className="book-guide-icon"><Icon name="book"/></span><div><h2 tabIndex={-1}>افزودن کتاب، قدم‌به‌قدم</h2><p>از PDF و جلد تا متن آماده، ویس و انتشار</p></div><button type="button" aria-expanded={state.open} aria-controls={region} onClick={()=>setState(old=>({...old,open:!old.open}))}>{state.open?'بستن راهنما':'بازکردن راهنما'}<Icon name="chevron"/></button></header>
+  {bookId&&<div className="book-setup-summary" aria-label="پیشرفت واقعی کتاب">
+   {error?<div className="setup-progress-error" role="alert"><span>وضعیت کتاب بررسی نشد: {error}</span><button type="button" onClick={refresh} disabled={checking}>تلاش دوباره</button></div>:progress?<>
+    <div className="setup-progress-heading"><strong>{progress.completed.toLocaleString('fa-IR')} از {progress.total.toLocaleString('fa-IR')} کار اصلی ثبت شده</strong><button type="button" onClick={refresh} disabled={checking} aria-label="بررسی دوبارهٔ پیشرفت کتاب">{checking?'در حال بررسی…':'بررسی دوباره'}<Icon name="replay"/></button></div>
+    <div className="setup-progress-meter" role="progressbar" aria-label="پیشرفت کارهای اصلی کتاب" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.completed}><i style={{width:`${progress.total?progress.completed/progress.total*100:0}%`}}/></div>
+    <div className="setup-next-task" role="status">{nextIndex>=0?<><div><strong>کار بعدی: {stepLabels[nextIndex]}</strong><p>{saved[stepIds[nextIndex]]?.detail}</p></div><button type="button" onClick={showNext}>راهنمای این کار<Icon name="arrow"/></button></>:<div><strong>کارهای اصلی این کتاب ثبت شده‌اند.</strong><p>تصویر جلد اختصاصی و فهرست را هم در صورت نیاز تکمیل کن.</p></div>}</div>
+   </>:<p className="setup-progress-loading" role="status">در حال بررسی اطلاعات ذخیره‌شدهٔ کتاب…</p>}
+  </div>}
   <div id={region} hidden={!state.open} className="book-guide-body">
-   <div className="book-guide-progress"><span>گام {(state.step+1).toLocaleString('fa-IR')} از {steps.length.toLocaleString('fa-IR')}</span><div aria-hidden="true">{steps.map((_,index)=><i key={index} className={index===state.step?'current':index<state.step?'previous':''}/>)}</div><label><span className="sr-only">انتخاب مرحلهٔ راهنما</span><select aria-label="انتخاب مرحلهٔ راهنما" value={state.step} onChange={event=>select(Number(event.target.value))}>{steps.map((step,index)=><option key={step.title} value={index}>{(index+1).toLocaleString('fa-IR')}. {step.title}</option>)}</select></label></div>
+   {bookId&&progress&&<details ref={list} className="book-setup-checklist" open><summary>وضعیت همهٔ مراحل <span>{progress.steps.filter(step=>step.status!=='done'&&step.required).length.toLocaleString('fa-IR')} کار اصلی باقی مانده</span></summary><div className="setup-checklist-grid">{stepIds.map((id,index)=>{const step=saved[id];return <button type="button" key={id} aria-label={`${stepLabels[index]}، ${step?statusLabels[step.status]:'بررسی نشده'}`} aria-current={state.step===index?'step':undefined} onClick={()=>select(index)}>{icon(step,index)}<span><strong>{stepLabels[index]}</strong><small>{step?statusLabels[step.status]:'بررسی نشده'}{step&&!step.required&&step.status!=='optional'?' · اختیاری':''}</small></span></button>;})}</div><p>تیک‌ها از اطلاعات ثبت‌شدهٔ کتاب می‌آیند. متن و زیرنویس برای صفحه‌های غیرتصویری بررسی می‌شوند.</p></details>}
+   <div className="book-guide-progress"><span>راهنمای گام {(state.step+1).toLocaleString('fa-IR')}</span><div aria-hidden="true">{steps.map((_,index)=><i key={index} className={`${saved[stepIds[index]]?.status==='done'?'saved-done ':''}${index===state.step?'current':''}`}/>)}</div><label><span className="sr-only">انتخاب مرحلهٔ راهنما</span><select aria-label="انتخاب مرحلهٔ راهنما" value={state.step} onChange={event=>select(Number(event.target.value))}>{steps.map((step,index)=><option key={step.title} value={index}>{saved[stepIds[index]]?.status==='done'?'✓ ':''}{(index+1).toLocaleString('fa-IR')}. {step.title}</option>)}</select></label></div>
    <div className="book-guide-step"><span className="book-guide-location">{current.location}</span><h3>{current.title}</h3>
+    {currentSaved&&<div className={`setup-current-state state-${currentSaved.status}`}>{icon(currentSaved,state.step)}<div><strong>{statusLabels[currentSaved.status]}{!currentSaved.required&&currentSaved.status!=='optional'?' · اختیاری':''}</strong><p>{currentSaved.detail}</p></div></div>}
+    {currentSaved&&currentSaved.pageNumbers.length>0&&onPage&&<div className="setup-missing-pages"><span>صفحه‌های نیازمند تکمیل:</span>{currentSaved.pageNumbers.map(number=><button type="button" key={number} onClick={()=>onPage(number)} aria-label={`تکمیل صفحهٔ ${number.toLocaleString('fa-IR')}`}>{number.toLocaleString('fa-IR')}</button>)}{currentSaved.remaining>currentSaved.pageNumbers.length&&<small>و {(currentSaved.remaining-currentSaved.pageNumbers.length).toLocaleString('fa-IR')} صفحهٔ دیگر</small>}</div>}
     {state.step===1&&<fieldset className="book-guide-text-choice"><legend>متن سالم کتاب را از قبل داری؟</legend><button type="button" aria-pressed={state.prepared} onClick={()=>setState(old=>({...old,prepared:true}))}>بله، متن آماده دارم</button><button type="button" aria-pressed={!state.prepared} onClick={()=>setState(old=>({...old,prepared:false}))}>متن را از PDF بگیر</button></fieldset>}
     {state.step===1&&hasPages&&<p className="book-guide-tip">صفحه‌های این کتاب از قبل وارد شده‌اند. برای ادامهٔ آماده‌سازی می‌توانی به مرحلهٔ جلد یا متن بروی؛ ورود دوبارهٔ PDF صفحه‌های تازه به کتاب اضافه می‌کند.</p>}
     {state.step===7&&bookId&&!hasPages&&<p className="book-guide-tip">برای پیش‌نمایش و انتشار، ابتدا مرحلهٔ «ورود PDF و صفحه‌ها» را تکمیل کن؛ هنوز صفحه‌ای در این کتاب ثبت نشده است.</p>}

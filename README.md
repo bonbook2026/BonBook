@@ -77,6 +77,14 @@ The library designer uses the same task navigation with a shared save action.
 An eight-step book setup guide covers PDF import, cover setup, prepared text,
 audio uploads, alignment, contents and publication. Its actions open the relevant
 task without saving or publishing; guide position is remembered per book/device.
+For each book, the guide derives its checklist from a fresh, administrator-only
+snapshot of saved data. Saves and completed uploads refresh the counts immediately;
+visible editors also refresh every fifteen seconds for background processing.
+The next required task and missing page links follow actual text, attached audio,
+valid saved timings and publication state. Ready speech suggestions need applying
+before they count. Custom covers and contents are optional; explicitly image-only
+pages do not require subtitles or a recording. Removing saved work reopens its task.
+Guide navigation and device preferences never mark a task complete.
 
 Fullscreen reading includes a sky journey driven by the real page order and the
 current recording's playback percentage. The opening and closing two pages hold

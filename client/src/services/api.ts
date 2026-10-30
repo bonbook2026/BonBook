@@ -1,6 +1,7 @@
 import { AuthResponse, BookInfo, Order, User, LibraryBook, LibraryPage, SearchResult, AdminGrant,PageSummary,BookCategory,BookImport,ImportedPage,ContentsEntry,AudioBatch,AudioAlignment,BookTextImport,TextImportItem } from '../types';
 import { IS_DEMO, IS_PREPRODUCTION } from '../config/demo';
 import {SiteFeatures,SiteSection,LibraryHeroSettings} from '../types/siteSettings';
+import {BookSetupProgress} from '../types';
 
 const BASE_URL = '/api';
 export const mediaUrl = (url: string | null) => url && url.startsWith('/api/media/') ? url : null;
@@ -67,7 +68,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new ApiError(error.error || `HTTP ${response.status}`,response.status,Number(response.headers.get('Retry-After'))||0);
   }
 
-  return response.json();
+  const result=await response.json();
+  if(path.startsWith('/admin/')&&options.method&&!['GET','HEAD'].includes(options.method.toUpperCase()))window.dispatchEvent(new Event('bonbook:admin-saved'));
+  return result;
 }
 
 export const api = {
@@ -139,6 +142,7 @@ export const api = {
     saveProgress: (bookId: number, pageNumber: number) => request<{ok: boolean}>('/library/progress', {method:'PUT', body:JSON.stringify({bookId,pageNumber})}),
   },
   admin: {
+    setupProgress:(id:number,signal?:AbortSignal)=>request<{progress:BookSetupProgress}>(`/admin/books/${id}/setup-progress`,{signal}),
     security:(code='')=>request<import('../types').ContentSecurityOverview>('/admin/content-security'+(code?'?code='+encodeURIComponent(code):'')),
     revokeSession:(id:string)=>request<{ok:boolean}>(`/admin/content-security/sessions/${id}/revoke`,{method:'POST'}),
     sections:()=>request<{features:SiteFeatures}>('/admin/sections'),
@@ -152,7 +156,7 @@ export const api = {
     cancelAudioBatch:(id:string)=>request<{ok:boolean}>(`/admin/audio-batches/${id}`,{method:'DELETE'}),
     uploadBatchAudio:(batchId:string,itemId:string,file:File,onProgress:(percent:number)=>void)=>new Promise<void>((resolve,reject)=>{
       const xhr=new XMLHttpRequest(),body=new FormData();body.append('file',file);xhr.open('POST',`${BASE_URL}/admin/media/audio-batches/${batchId}/items/${itemId}`);const token=getToken();if(token)xhr.setRequestHeader('Authorization','Bearer '+token);
-      xhr.upload.onprogress=event=>{if(event.lengthComputable)onProgress(event.loaded/event.total*100);};xhr.onerror=()=>reject(new Error('ارتباط قطع شد؛ می‌توانی بارگذاری را ادامه بدهی.'));xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300)resolve();else{let message='بارگذاری کامل نشد.';try{message=JSON.parse(xhr.responseText).error||message;}catch{}reject(new Error(message));}};xhr.send(body);
+      xhr.upload.onprogress=event=>{if(event.lengthComputable)onProgress(event.loaded/event.total*100);};xhr.onerror=()=>reject(new Error('ارتباط قطع شد؛ می‌توانی بارگذاری را ادامه بدهی.'));xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300){window.dispatchEvent(new Event('bonbook:admin-saved'));resolve();}else{let message='بارگذاری کامل نشد.';try{message=JSON.parse(xhr.responseText).error||message;}catch{}reject(new Error(message));}};xhr.send(body);
     }),
     pageAlignment:(id:number,page:number)=>request<{available:boolean;alignment:AudioAlignment|null}>(`/admin/books/${id}/pages/${page}/alignment`),
     startAlignment:(id:number,page:number)=>request<{alignment:AudioAlignment}>(`/admin/books/${id}/pages/${page}/alignment`,{method:'POST'}),
@@ -197,7 +201,7 @@ export const api = {
     uploadDocument:async(bookId:number,files:File[],mode:string)=>{
       const body=new FormData();body.append('mode',mode);files.forEach(file=>body.append('files',file));
       const response=await fetch(`${BASE_URL}/admin/media/import/${bookId}`,{method:'POST',headers:authenticationHeaders(),body});
-      const result=await response.json().catch(()=>({error:'بارگذاری کامل نشد. مجموع فایل‌ها باید حداکثر ۳۰ مگابایت باشد.'}));if(!response.ok)throw new ApiError(result.error,response.status);return result as {import:BookImport};
+      const result=await response.json().catch(()=>({error:'بارگذاری کامل نشد. مجموع فایل‌ها باید حداکثر ۳۰ مگابایت باشد.'}));if(!response.ok)throw new ApiError(result.error,response.status);window.dispatchEvent(new Event('bonbook:admin-saved'));return result as {import:BookImport};
     },
     savePage: (bookId: number, page: Pick<LibraryPage,'number'|'heading'|'content'|'keywords'|'audioAssetId'|'audioCues'|'imageAssetId'|'visualMode'>) => request<{page:LibraryPage}>(`/admin/books/${bookId}/pages/${page.number}`, {method:'PUT',body:JSON.stringify(page)}),
     deletePage: (bookId: number, page: number) => request<{ok:boolean}>(`/admin/books/${bookId}/pages/${page}`, {method:'DELETE'}),

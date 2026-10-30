@@ -66,6 +66,9 @@ export interface AudioAlignment{id:string;status:'QUEUED'|'PROCESSING'|'READY'|'
 export interface AudioBatchItem{id:string;pageNumber:number;filename:string;size:number;status:'WAITING'|'ATTACHED'|'FAILED'|'SKIPPED';assetId:string|null;error:string|null;alignment?:AudioAlignment|null}
 export interface AudioBatch{id:string;bookId:number;status:'UPLOADING'|'COMPLETE'|'CANCELED';autoAlign:boolean;replaceExisting:boolean;items:AudioBatchItem[]}
 export type PageSummary=Pick<LibraryPage,'id'|'number'|'heading'>;
+export type BookSetupStepId='metadata'|'pages'|'cover'|'text'|'audio'|'alignment'|'contents'|'publish';
+export interface BookSetupStep{id:BookSetupStepId;status:'done'|'todo'|'working'|'review'|'optional';required:boolean;completed:number;total:number;remaining:number;pageNumbers:number[];detail:string}
+export interface BookSetupProgress{steps:BookSetupStep[];completed:number;total:number;nextStep:BookSetupStepId|null;checkedAt:string}
 export interface BookCategory{id:number;name:string;parentId:number|null;path:string;bookCount:number}
 export interface BookImport{id:string;bookId:number;filename:string;format:string;mode:string;status:'QUEUED'|'PROCESSING'|'REVIEW'|'APPLIED'|'FAILED'|'CANCELED';totalPages:number;completedPages:number;warnings:string;error:string|null;createdAt:string}
 export interface ImportedPage{number:number;heading:string;content:string;sourceUrl:string|null;sourcePageNumber:number|null}
