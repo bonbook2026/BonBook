@@ -68,6 +68,13 @@ Do not commit real credentials or local databases. `.env.example` contains confi
 
 ## Validation and builds
 
+The admin workspace separates the catalog from site settings in a grouped menu.
+Book editing has six task tabs, with page editing as the default and document
+import first for a new empty book. Opened tasks stay mounted during tab changes
+so selected files, unsaved inputs and active uploads are retained. Optional page
+artwork, timing controls and destructive actions use explicit disclosures.
+The library designer uses the same task navigation with a shared save action.
+
 Fullscreen reading includes a sky journey driven by the real page order and the
 current recording's playback percentage. The opening and closing two pages hold
 their sky state. The site's selected day/night theme determines the starting
