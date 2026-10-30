@@ -3,6 +3,7 @@ import {Link,useNavigate,useSearchParams} from 'react-router-dom';
 import {AdminShell,bookStatus} from '../components/AdminShell';
 import {BookCover} from '../components/BookCover';
 import {Icon} from '../components/Icon';
+import {BookSetupGuide} from '../components/BookSetupGuide';
 import {api} from '../services/api';
 import {LibraryBook,BookCategory} from '../types';
 export function Admin(){
@@ -17,6 +18,7 @@ export function Admin(){
   const filtered=Boolean(params.get('q')||params.get('categoryId')||status!=='ALL');
   return <AdminShell>
     <header className="admin-screen-heading"><div><h1>کتاب‌های تو</h1><p>کتاب را انتخاب کن و روی همان کاری که می‌خواهی انجام دهی تمرکز کن.</p></div><button className="reader-button primary" aria-expanded={creating} aria-controls="new-book-form" onClick={()=>setCreating(value=>!value)}><Icon name="plus"/>کتاب جدید</button></header>
+    <BookSetupGuide onCreate={()=>setCreating(true)}/>
     {creating&&<section className="admin-create" id="new-book-form"><div className="admin-create-heading"><h2>نام کتاب جدید چیست؟</h2><button aria-label="بستن فرم کتاب جدید" onClick={()=>setCreating(false)}><Icon name="close"/></button></div><p>بعد از ساخت، فایل کتاب، تصاویر یا متن آماده را وارد می‌کنی.</p><form onSubmit={async e=>{e.preventDefault();setBusy(true);setError('');try{const {book}=await api.admin.createBook(title);navigate(`/admin/books/${book.id}?view=import`);}catch(e){setError((e as Error).message);}finally{setBusy(false);}}}><input autoFocus aria-label="عنوان کتاب جدید" placeholder="مثلاً: بینش انسان و معرفت" maxLength={200} required value={title} onChange={e=>setTitle(e.target.value)}/><button className="reader-button primary" disabled={busy||!title.trim()}>{busy?'در حال ساخت…':'ساخت و ادامه'}</button></form></section>}
     <div className="admin-catalog-filters"><label><Icon name="search"/><input aria-label="جست‌وجوی کتاب‌های پنل" placeholder="جست‌وجوی نام کتاب یا نویسنده…" value={query} onChange={e=>setQuery(e.target.value)}/></label><select aria-label="وضعیت کتاب‌ها" value={status} onChange={e=>filter({status:e.target.value,page:'1'})}><option value="ALL">همهٔ وضعیت‌ها</option>{Object.entries(bookStatus).map(([value,label])=><option key={value} value={value}>{label} · {(counts[value]||0).toLocaleString('fa-IR')}</option>)}</select><select aria-label="فیلتر دسته" value={params.get('categoryId')||''} onChange={e=>filter({categoryId:e.target.value,page:'1'})}><option value="">همهٔ دسته‌ها</option>{categories.map(c=><option key={c.id} value={c.id}>{c.path}</option>)}</select></div>
     <div className="admin-catalog-tools"><span>{loading?'در حال دریافت کتاب‌ها…':`${total.toLocaleString('fa-IR')} کتاب${filtered?' با این فیلتر':''}`}{filtered&&<button onClick={()=>{setQuery('');setParams({});}}>پاک‌کردن فیلترها</button>}</span><select aria-label="ترتیب کتاب‌ها" value={params.get('sort')||'updated'} onChange={e=>filter({sort:e.target.value,page:'1'})}><option value="updated">آخرین ویرایش‌ها</option><option value="title">نام کتاب</option></select></div>

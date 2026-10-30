@@ -74,6 +74,9 @@ import first for a new empty book. Opened tasks stay mounted during tab changes
 so selected files, unsaved inputs and active uploads are retained. Optional page
 artwork, timing controls and destructive actions use explicit disclosures.
 The library designer uses the same task navigation with a shared save action.
+An eight-step book setup guide covers PDF import, cover setup, prepared text,
+audio uploads, alignment, contents and publication. Its actions open the relevant
+task without saving or publishing; guide position is remembered per book/device.
 
 Fullscreen reading includes a sky journey driven by the real page order and the
 current recording's playback percentage. The opening and closing two pages hold
