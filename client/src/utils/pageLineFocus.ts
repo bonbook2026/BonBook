@@ -1,4 +1,15 @@
 export interface ImageReadingLine{start:number;end:number;x:number;y:number;width:number;height:number;time?:number}
+export interface ImageReadingWord{start:number;end:number;rects:{x:number;y:number;width:number;height:number}[];time?:number;endTime?:number;lineStart?:number}
+export function exactWordTime(word:ImageReadingWord|null){return word&&typeof word.time==='number'&&typeof word.endTime==='number'&&Number.isFinite(word.time)&&Number.isFinite(word.endTime)&&word.time>=0&&word.endTime>word.time?word.time:null;}
+export function activeImageWord(words:ImageReadingWord[],time:number,enabled:boolean){
+ if(!enabled)return null;let selected:ImageReadingWord|null=null;const now=time+1e-6;
+ for(const word of words)if(exactWordTime(word)!==null&&now>=word.time!&&now<word.endTime!&&(!selected||word.time!>selected.time!))selected=word;
+ return selected;
+}
+export function hitImageWord(words:ImageReadingWord[],x:number,y:number){
+ if(x<0||x>1||y<0||y>1)return null;
+ return words.find(word=>word.rects.some(rect=>x>=rect.x&&x<=rect.x+rect.width&&y>=rect.y-.002&&y<=rect.y+rect.height+.002))||null;
+}
 export function bookFocusTransform(single:boolean,line:ImageReadingLine|null,visibleFraction=1){
  const scale=single?1.8:2.25,u=single?.5:.75,edge=Math.max(.02,Math.min(1,visibleFraction))/(2*scale),v=Math.max(edge,Math.min(1-edge,line?line.y+line.height/2:.22));
  return `translate(${(.5-u*scale)*100}%,${(.5-v*scale)*100}%) scale(${scale})`;

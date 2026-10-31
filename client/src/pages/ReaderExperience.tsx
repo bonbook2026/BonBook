@@ -16,7 +16,7 @@ import {ReaderImmersive} from '../components/ReaderImmersive';
 import {resumeDevicePage,saveDeviceReading} from '../utils/readingProgress';
 import {useReaderProtection,ReaderAccountStamp} from '../components/ReaderProtection';
 import {usePageLineMap} from '../hooks/usePageLineMap';
-import {activeImageLine,imageLineTime,ImageReadingLine} from '../utils/pageLineFocus';
+import {activeImageLine,activeImageWord,exactWordTime,imageLineTime,ImageReadingLine,ImageReadingWord} from '../utils/pageLineFocus';
 import {journeySeekTarget} from '../utils/readingJourney';
 
 function preference(key:string,fallback:string){try{return localStorage.getItem(key)||fallback;}catch{return fallback;}}
@@ -79,7 +79,21 @@ export function Reader(){
   const chapter=book?.contents?.reduce((best,item)=>item.pageNumber<=number&&(!best||item.pageNumber>=best.pageNumber)?item:best,null as NonNullable<LibraryBook['contents']>[number]|null);
   const heading=page?.heading||chapter?.title||`صفحهٔ ${fa(number)}`,offset=active&&audio.status!=='idle'?audio.offset:-1;
   const lineMap=usePageLineMap(page,Boolean(page?.content));
+  const facingMap=usePageLineMap(shownFacing,Boolean(shownFacing?.content));
+  const focusWord=lineMap?.status==='ready'?activeImageWord(lineMap.words||[],audio.elapsedSeconds,active&&audio.status!=='idle'&&!audio.approximate):null;
   const focusLine=lineMap?.status==='ready'?activeImageLine(lineMap.lines,offset,audio.elapsedSeconds,!audio.approximate&&lineMap.lines.some(line=>line.time!==undefined)):null;
+  const readFromWord=(word:ImageReadingWord|null,target:LibraryPage)=>{
+    if(!book||Date.now()-swiped.current<500)return;
+    if(!target.audioUrl){setError('برای این صفحه هنوز ویس ثبت نشده است.');return;}
+    const seconds=exactWordTime(word);
+    if(seconds===null){setError('زمان دقیق این کلمه هنوز مطمئن نیست؛ می‌توانی از پخش‌کننده استفاده کنی.');return;}
+    setError('');setToc(false);const same=active&&target.bookId===bookId&&target.number===number;
+    if(continuous&&voices.includes(target.number)&&(!same||!fullBook))void audio.playBook(book,target.number,target,0,seconds);
+    else if(same&&audio.durationSeconds>0)audio.seek(seconds/audio.durationSeconds*100,true);
+    else if(continuous&&voices.includes(target.number))void audio.playBook(book,target.number,target,0,seconds);
+    else audio.play({bookId:target.bookId,number:target.number,title:book.title,content:target.content,language:book.language,audioUrl:mediaUrl(target.audioUrl),audioCues:target.audioCues,audioCueMode:target.audioCueMode,page:target},audio.rate,seconds);
+    if(target.number!==number)navigate(`/read/${bookId}/${target.number}`);
+  };
   const readFromLine=(line:ImageReadingLine)=>{
     if(!page||!book||Date.now()-swiped.current<500)return;
     if(!page.audioUrl){setError('برای این صفحه هنوز ویس ثبت نشده است.');return;}
@@ -123,19 +137,19 @@ export function Reader(){
         {error&&<p className="rx-notice" role="alert">{error}</p>}
         <div className="rx-desk" aria-busy={!page} onTouchStart={e=>{touch.current={x:e.touches[0].clientX,y:e.touches[0].clientY};}} onTouchEnd={e=>{const start=touch.current;touch.current=null;if(!start)return;const dx=e.changedTouches[0].clientX-start.x,dy=e.changedTouches[0].clientY-start.y;if(Math.abs(dx)>60&&Math.abs(dy)<65){const target=dx<0?next:previous;if(target!==undefined){swiped.current=Date.now();go(target);}}}}>
           <span className="rx-desk-ornament" aria-hidden="true">B</span><button className="rx-page-arrow rx-previous" disabled={previous===undefined} onClick={()=>previous!==undefined&&go(previous)} aria-label={fullBook?'ویس قبلی کتاب':'ورق به صفحهٔ قبل'}><Icon name="chevron" className="rx-flipped"/></button>
-          {visualPage?<ReaderBook lines={page&&lineMap?.status==='ready'?lineMap.lines:[]} onReadLine={readFromLine} eye={eye} focusLine={page?focusLine:null} page={visualPage} facing={shownFacing} hasFacing={physicalNext!==undefined} title={book.title} single={view==='single'||!wide} onZoom={openZoom} onFacing={()=>physicalNext!==undefined&&go(physicalNext)}/>:null}
+          {visualPage?<ReaderBook words={page&&lineMap?.status==='ready'?lineMap.words:undefined} facingWords={facingMap?.status==='ready'?facingMap.words:undefined} facingLines={facingMap?.status==='ready'?facingMap.lines:[]} focusWord={focusWord} onReadWord={readFromWord} lines={page&&lineMap?.status==='ready'?lineMap.lines:[]} onReadLine={readFromLine} eye={eye} focusLine={page?focusLine:null} page={visualPage} facing={shownFacing} hasFacing={physicalNext!==undefined} title={book.title} single={view==='single'||!wide} onZoom={openZoom} onFacing={()=>physicalNext!==undefined&&go(physicalNext)}/>:null}
           {!page&&!error&&<div className="rx-page-loading" role="status">در حال ورق‌زدن…</div>}
           <button className="rx-page-arrow rx-next" disabled={next===undefined} onClick={()=>next!==undefined&&go(next)} aria-label={fullBook?'ویس بعدی کتاب':'ورق به صفحهٔ بعد'}><Icon name="chevron"/></button>
         </div>
         <div className="rx-page-footer"><span className="rx-original-label"><i/>{page&&readerPageImage(page)?'تصویر اصلی کتاب':'متن کتاب'}{isAdmin&&page?.sourceUrl&&<a href={page.sourceUrl+(page.sourcePageNumber?'#page='+page.sourcePageNumber:'')} target="_blank" rel="noopener noreferrer">فایل اصلی ↗</a>}</span><label className="rx-page-counter">صفحهٔ <select value={number} aria-label="انتخاب صفحهٔ کتاب" onChange={e=>go(Number(e.target.value))}>{book.pages?.map(item=><option key={item.number} value={item.number}>{fa(item.number)}</option>)}</select><span>از {fa(book.pageCount)}</span></label><ReaderAccountStamp code={page?.protection?.watermark}/></div>
         <section className="rx-transcript-card" aria-label="متن همراه با صدا"><div className="rx-transcript-top"><div className="rx-transcript-heading"><h2><span className="rx-sound-wave" aria-hidden="true"><i/><i/><i/><i/></span>متن همراهِ صدا</h2>{page?.content&&page.visualMode!=='IMAGE'&&<button className="rx-caption-button" aria-pressed={captions} onClick={()=>setCaptions(!captions)}>{captions?'نمایش متن کامل':'نمایش زیرنویس'}</button>}</div><label className="rx-follow-label"><input type="checkbox" checked={follow} onChange={e=>setFollow(e.target.checked)}/><span/>دنبال‌کردن خودکار</label></div>
           <div className="rx-transcript-body" style={{fontSize}}>{!page?<p className="rx-transcript-empty">در حال دریافت صفحه…</p>:page.visualMode==='IMAGE'?<p className="rx-transcript-empty">{page.audioUrl?'این صفحه تصویری است؛ روایت صوتی آن را می‌توانی پخش کنی.':'این صفحه تصویری است؛ تصویر اصلی کتاب را ببین.'}</p>:page.content?<ReadAlongText key={`${bookId}-${number}`} text={page.content} offset={offset} follow={follow} terms={terms} captions={useCaptions} contained/>:<p className="rx-transcript-empty">این صفحه متن قابل خواندن ندارد؛ تصویر اصلی کتاب را ببین.</p>}</div>
-          <div className="rx-transcript-foot"><span>{lineMap?.status==='processing'?'جای خط‌ها روی تصویر در حال آماده‌شدن است…':lineMap?.status==='unavailable'?lineMap.message:lineMap?.status==='ready'&&!active?'برای شنیدن از هر خط، همان خطِ تصویر کتاب را لمس کن.':active&&audio.approximate?'همراهی این روایت با متن تقریبی است.':fullBook?`ویس ${fa(voicePosition+1)} از ${fa(voices.length)}؛ صفحه‌های بدون ویس رد می‌شوند.`:session?.completed?'پخش همهٔ ویس‌های کتاب به پایان رسید.':'با پخش روایت، جملهٔ در حال خواندن روشن می‌شود.'}</span><button onClick={()=>setFontSize(fontSize>=23?17:fontSize+2)} aria-label="بزرگ‌تر کردن متن همراه">آ +</button></div>
+          <div className="rx-transcript-foot"><span>{lineMap?.status==='processing'?'جای کلمه‌ها روی تصویر در حال آماده‌شدن است…':lineMap?.status==='unavailable'?lineMap.message:lineMap?.refining?'زمان‌بندی دقیق کلمه‌ها در پس‌زمینه آماده می‌شود؛ واژه‌های آماده قابل لمس‌اند.':lineMap?.status==='ready'&&!active?lineMap.timedWordCount?'برای شنیدن از هر کلمه، همان واژه را روی کتاب لمس کن.':'این صفحه فعلاً همراهی خطی دارد؛ زمان دقیق کلمه‌ها هنوز آماده نیست.':active&&audio.approximate?'همراهی این روایت با متن تقریبی است.':fullBook?`ویس ${fa(voicePosition+1)} از ${fa(voices.length)}؛ صفحه‌های بدون ویس رد می‌شوند.`:session?.completed?'پخش همهٔ ویس‌های کتاب به پایان رسید.':'با پخش روایت، جملهٔ در حال خواندن روشن می‌شود.'}</span><button onClick={()=>setFontSize(fontSize>=23?17:fontSize+2)} aria-label="بزرگ‌تر کردن متن همراه">آ +</button></div>
         </section>
       </section>
     </main>}
     {!zoom&&playback&&<footer className="rx-player" aria-label="پخش‌کنندهٔ روایت کتاب"><ReaderPlayback state={playback}/></footer>}
-    <ReaderImmersive lines={page&&lineMap?.status==='ready'?lineMap.lines:[]} onReadLine={readFromLine} eye={eye} onEye={()=>setEye(value=>!value)} focusLine={page?focusLine:null} open={zoom} onClose={()=>setZoom(false)} book={book} page={page} visualPage={visualPage} facing={shownFacing} hasFacing={physicalNext!==undefined} number={number} heading={heading} night={theme==='night'} onTheme={()=>setTheme(theme==='night'?'paper':'night')} single={zoomSingle} onSingle={()=>setZoomSingle(value=>!value)} previous={previous} next={next} onGo={go} onFacing={()=>physicalNext!==undefined&&go(physicalNext)} offset={offset} terms={terms} playback={playback} onJourneySeek={seekJourney} onJourneyDragStart={beginJourneyDrag} onJourneyDragCancel={cancelJourneyDrag}/>
+    <ReaderImmersive readError={error} words={page&&lineMap?.status==='ready'?lineMap.words:undefined} facingWords={facingMap?.status==='ready'?facingMap.words:undefined} facingLines={facingMap?.status==='ready'?facingMap.lines:[]} focusWord={focusWord} onReadWord={readFromWord} lines={page&&lineMap?.status==='ready'?lineMap.lines:[]} onReadLine={readFromLine} eye={eye} onEye={()=>setEye(value=>!value)} focusLine={page?focusLine:null} open={zoom} onClose={()=>setZoom(false)} book={book} page={page} visualPage={visualPage} facing={shownFacing} hasFacing={physicalNext!==undefined} number={number} heading={heading} night={theme==='night'} onTheme={()=>setTheme(theme==='night'?'paper':'night')} single={zoomSingle} onSingle={()=>setZoomSingle(value=>!value)} previous={previous} next={next} onGo={go} onFacing={()=>physicalNext!==undefined&&go(physicalNext)} offset={offset} terms={terms} playback={playback} onJourneySeek={seekJourney} onJourneyDragStart={beginJourneyDrag} onJourneyDragCancel={cancelJourneyDrag}/>
 
   </div>;
 }

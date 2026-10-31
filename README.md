@@ -99,6 +99,17 @@ resumes playback, including before audio metadata has loaded. Margins still open
 the larger view; swipes do not seek audio. Lines without a known timestamp do not
 invent one. The same controls work in the immersive view.
 
+Word read-along uses actual OCR/PDF word boxes and validated speech intervals.
+It never divides a phrase box or a phrase timestamp uniformly into fake words.
+Touching a mapped word on either visible page starts its own recording timestamp;
+the matching printed word lights only inside its actual interval. Existing page
+text, recordings and saved cues are unchanged. Where current applied alignment
+data is available, a single offline background queue refines word times against
+the approved text using the already installed speech model. Ready words remain
+usable during refinement. Repeated or uncertain words without a confident time
+are not silently sent to the beginning of a line. Derived maps are private and
+invalidated when the source, audio, text or timing changes.
+
 Fullscreen reading includes a sky journey driven by the real page order and the
 current recording's playback percentage. The opening and closing two pages hold
 their sky state. The site's selected day/night theme determines the starting

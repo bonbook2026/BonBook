@@ -81,4 +81,4 @@ export interface AdminGrant {
   id: number; kind: string; identifier: string; claimedUserId: number | null; createdAt: string;
 }
 
-export interface PageLineMap{status:'ready'|'processing'|'unavailable';lines:import('../utils/pageLineFocus').ImageReadingLine[];coverage:number;source?:'pdf'|'ocr';message?:string}
+export interface PageLineMap{status:'ready'|'processing'|'unavailable';lines:import('../utils/pageLineFocus').ImageReadingLine[];coverage:number;refining?:boolean;words?:import('../utils/pageLineFocus').ImageReadingWord[];wordCount?:number;timedWordCount?:number;source?:'pdf'|'ocr';message?:string}

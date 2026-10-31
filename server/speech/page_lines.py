@@ -1,6 +1,7 @@
 """Match visible page rows to saved text; never invent a position for unmatched text."""
 import sys,json,difflib,unicodedata
 from alignment import align
+from page_words import map_words
 
 def stream(text):
     chars=[];offsets=[];offset=0
@@ -11,7 +12,7 @@ def stream(text):
         offset+=len(char.encode('utf-16-le'))//2
     return ''.join(chars),offsets
 
-def map_lines(content,rows,words=None):
+def map_lines(content,rows,words=None,refined=None):
     target,offsets=stream(content);source='';owners=[];sizes=[]
     for i,row in enumerate(rows):
         value,_=stream(row['text']);sizes.append(len(value));source+=value;owners.extend([i]*len(value))
@@ -33,8 +34,20 @@ def map_lines(content,rows,words=None):
             times={cue['offset']:cue['time'] for cue in timing['cues']}
             for line in result:
                 if line['start'] in times:line['time']=times[line['start']]
-    return {'lines':result,'coverage':round(matched/max(1,len(target)),3)}
+    word_map=map_words(content,rows,words,min_probability=.35,contextual=True)
+    if refined:
+        improved=map_words(content,rows,refined,min_probability=.3)
+        by_start={word['start']:word for word in improved['words'] if 'time' in word}
+        for word in word_map['words']:
+            other=by_start.get(word['start'])
+            if 'time' not in word and other and other['end']==word['end']:word.update(time=other['time'],endTime=other['endTime'])
+        word_map['timedWordCount']=sum('time' in word for word in word_map['words'])
+    for word in word_map['words']:
+        center=word['rects'][0]['y']+word['rects'][0]['height']/2
+        parent=next((line for line in result if line['y']-.005<=center<=line['y']+line['height']+.005),None)
+        if parent:word['lineStart']=parent['start']
+    return {'lines':result,'coverage':round(matched/max(1,len(target)),3),**word_map}
 
 if __name__=='__main__':
     data=json.load(sys.stdin)
-    print(json.dumps(map_lines(data['content'],data['rows'],data.get('words'))))
+    print(json.dumps(map_lines(data['content'],data['rows'],data.get('words'),data.get('refined'))))

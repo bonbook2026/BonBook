@@ -3,16 +3,16 @@ import {LibraryPage} from '../types';
 import {mediaUrl} from '../services/api';
 import {ReaderAccountStamp} from './ReaderProtection';
 import {ReaderPageCanvas} from './ReaderPageCanvas';
-import {ImageReadingLine,bookFocusTransform,hitImageLine} from '../utils/pageLineFocus';
+import {ImageReadingLine,ImageReadingWord,bookFocusTransform,hitImageLine,hitImageWord} from '../utils/pageLineFocus';
 import {ReaderLineFocus} from './ReaderLineFocus';
 
 export function readerPageImage(page:LibraryPage){
   return page.visualMode==='TEXT'?null:mediaUrl(page.imageUrl||page.sourceImageUrl||null);
 }
 
-export function ReaderSheet({page,title,large=false,line=null}:{page:LibraryPage;title:string;large?:boolean;line?:ImageReadingLine|null}){
+export function ReaderSheet({page,title,large=false,line=null,word=null,wordMode=false}:{page:LibraryPage;title:string;large?:boolean;line?:ImageReadingLine|null;word?:ImageReadingWord|null;wordMode?:boolean}){
   const url=readerPageImage(page),[failed,setFailed]=useState<string|null>(null);
-  return url&&failed!==url?<><ReaderPageCanvas key={url} url={url} label={`${title}، تصویر صفحهٔ ${page.number.toLocaleString('fa-IR')}`} onError={()=>setFailed(url)}/><ReaderLineFocus line={line}/></>:
+  return url&&failed!==url?<><ReaderPageCanvas key={url} url={url} label={`${title}، تصویر صفحهٔ ${page.number.toLocaleString('fa-IR')}`} onError={()=>setFailed(url)}/><ReaderLineFocus line={line} word={word} wordMode={wordMode}/></>:
     <div className={'rx-text-page'+(large?' rx-text-page-large':'')}>
       <span className="rx-text-page-title">{title}</span><h2>{page.heading||`صفحهٔ ${page.number.toLocaleString('fa-IR')}`}</h2>
       <p>{page.content||'این صفحه متنی ندارد.'}</p><span className="rx-text-page-number">{page.number.toLocaleString('fa-IR')}</span>
@@ -21,9 +21,15 @@ export function ReaderSheet({page,title,large=false,line=null}:{page:LibraryPage
     </div>;
 }
 
-interface SpreadProps{page:LibraryPage;facing:LibraryPage|null;hasFacing:boolean;title:string;single:boolean;onZoom:()=>void;onFacing:()=>void;zoomLabel?:string;focusLine?:ImageReadingLine|null;eye?:boolean;lines?:ImageReadingLine[];onReadLine?:(line:ImageReadingLine)=>void}
-export function ReaderBook({page,facing,hasFacing,title,single,onZoom,onFacing,zoomLabel='بزرگ‌نمایی صفحهٔ جاری',focusLine=null,eye=false,lines=[],onReadLine}:SpreadProps){
-  const pointer=useRef<{x:number;y:number}|null>(null);
+interface SpreadProps{page:LibraryPage;facing:LibraryPage|null;hasFacing:boolean;title:string;single:boolean;onZoom:()=>void;onFacing:()=>void;zoomLabel?:string;focusLine?:ImageReadingLine|null;eye?:boolean;lines?:ImageReadingLine[];onReadLine?:(line:ImageReadingLine)=>void;focusWord?:ImageReadingWord|null;words?:ImageReadingWord[];facingWords?:ImageReadingWord[];facingLines?:ImageReadingLine[];onReadWord?:(word:ImageReadingWord|null,page:LibraryPage)=>void}
+export function ReaderBook({page,facing,hasFacing,title,single,onZoom,onFacing,zoomLabel='بزرگ‌نمایی صفحهٔ جاری',focusLine=null,eye=false,lines=[],onReadLine,focusWord=null,words,facingWords,facingLines=[],onReadWord}:SpreadProps){
+  const pointer=useRef<{x:number;y:number;word:ImageReadingWord|null;line:ImageReadingLine|null;number:number}|null>(null);
+  const hit=(element:HTMLButtonElement,x:number,y:number,wordList:ImageReadingWord[]|undefined,lineList:ImageReadingLine[])=>{const canvas=element.querySelector<HTMLCanvasElement>('.reader-page-canvas');if(!canvas||canvas.width<2)return {word:null,line:null};const box=canvas.getBoundingClientRect(),scale=Math.min(box.width/canvas.width,box.height/canvas.height),width=canvas.width*scale,height=canvas.height*scale,u=(x-box.left-(box.width-width)/2)/width,v=(y-box.top-(box.height-height)/2)/height;return {word:wordList?hitImageWord(wordList,u,v):null,line:hitImageLine(lineList,u,v)};};
+  const interaction=(target:LibraryPage,wordList:ImageReadingWord[]|undefined,lineList:ImageReadingLine[],fallback:()=>void)=>({
+   onPointerDown:(event:{clientX:number;clientY:number;currentTarget:HTMLButtonElement})=>{pointer.current={x:event.clientX,y:event.clientY,number:target.number,...hit(event.currentTarget,event.clientX,event.clientY,wordList,lineList)};},
+   onPointerCancel:()=>{pointer.current=null;},
+   onClick:(event:{clientX:number;clientY:number;currentTarget:HTMLButtonElement;detail:number})=>{const start=pointer.current;pointer.current=null;if(start&&Math.hypot(event.clientX-start.x,event.clientY-start.y)>12)return;if(event.detail){const selected=start?.number===target.number?start:hit(event.currentTarget,event.clientX,event.clientY,wordList,lineList);if(wordList!==undefined&&onReadWord&&(selected.word||selected.line)){onReadWord(selected.word,target);return;}if(selected.line&&onReadLine&&target.number===page.number){onReadLine(selected.line);return;}}fallback();},
+  });
   const stage=useRef<HTMLDivElement>(null),[visibleFraction,setVisibleFraction]=useState(1);
   useLayoutEffect(()=>{const element=stage.current,parent=element?.parentElement;if(!eye||!element||!parent)return;const measure=()=>setVisibleFraction(Math.min(1,parent.clientHeight/Math.max(1,element.clientHeight)));measure();const resize=new ResizeObserver(measure);resize.observe(element);resize.observe(parent);return()=>resize.disconnect();},[eye,single]);
   const previous=useRef<{page:LibraryPage;facing:LibraryPage|null}|null>(null);
@@ -38,13 +44,8 @@ export function ReaderBook({page,facing,hasFacing,title,single,onZoom,onFacing,z
   useEffect(()=>{previous.current={page,facing};},[page,facing]);
   return <div ref={stage} className={'rx-book-stage'+(single?' rx-single':'')+(eye?' rx-eye-focus':'')} onContextMenu={event=>event.preventDefault()} onDragStart={event=>event.preventDefault()}><div className="rx-book-object" style={eye?{transformOrigin:'0 0',transform:bookFocusTransform(single,focusLine,visibleFraction)}:undefined}>
     <div className="rx-book-edge" aria-hidden="true"/><div className="rx-book-spread">
-      <button type="button" className="rx-paper-page rx-current-page" aria-label={zoomLabel} title={lines.length?'هر خط را لمس کن تا روایت از همان‌جا پخش شود':undefined} onPointerDown={event=>{pointer.current={x:event.clientX,y:event.clientY};}} onPointerCancel={()=>{pointer.current=null;}} onClick={event=>{
-       const start=pointer.current;pointer.current=null;if(start&&Math.hypot(event.clientX-start.x,event.clientY-start.y)>12)return;
-       const canvas=event.currentTarget.querySelector<HTMLCanvasElement>('.reader-page-canvas');
-       if(event.detail&&canvas&&lines.length&&onReadLine){const box=canvas.getBoundingClientRect(),scale=Math.min(box.width/canvas.width,box.height/canvas.height),width=canvas.width*scale,height=canvas.height*scale,x=(event.clientX-box.left-(box.width-width)/2)/width,y=(event.clientY-box.top-(box.height-height)/2)/height,line=hitImageLine(lines,x,y);if(line){onReadLine(line);return;}}
-       onZoom();
-      }}><ReaderSheet page={page} title={title} line={focusLine}/><span className="rx-paper-sheen"/></button>
-      <button type="button" className="rx-paper-page rx-facing-page" aria-label={hasFacing?'رفتن به صفحهٔ روبه‌رو':'پایان کتاب'} disabled={!hasFacing} onClick={onFacing}>
+      <button type="button" className="rx-paper-page rx-current-page" aria-label={zoomLabel} title={words!==undefined?'هر کلمه را لمس کن تا روایت از همان کلمه پخش شود':lines.length?'هر خط را لمس کن تا روایت از همان‌جا پخش شود':undefined} {...interaction(page,words,lines,onZoom)}><ReaderSheet page={page} title={title} line={focusLine} word={focusWord} wordMode={Boolean(words?.some(word=>word.time!==undefined&&word.endTime!==undefined))}/><span className="rx-paper-sheen"/></button>
+      <button type="button" className="rx-paper-page rx-facing-page" aria-label={hasFacing?'رفتن به صفحهٔ روبه‌رو':'پایان کتاب'} disabled={!hasFacing} title={facingWords!==undefined?'هر کلمه را لمس کن تا روایت از همان کلمه پخش شود':undefined} {...(facing?interaction(facing,facingWords,facingLines,onFacing):{onClick:onFacing})}>
         {facing?<ReaderSheet page={facing} title={title}/>:<div className="rx-end-page"><span>✳</span><strong>{hasFacing?'صفحهٔ بعد':'هر پایان، یک آغاز تازه.'}</strong><small dir="ltr">BonBook</small></div>}<span className="rx-paper-sheen"/>
       </button>
     </div><span className="rx-spine-shadow" aria-hidden="true"/>

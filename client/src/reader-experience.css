@@ -52,3 +52,5 @@
 .rx-book-stage.rx-eye-focus.rx-single{aspect-ratio:.7045}.rx-immersive-canvas .rx-book-stage.rx-eye-focus.rx-single{aspect-ratio:.7045}
 
 .rx-night .rx-eye-toggle[aria-pressed=true]{color:#10213b!important}
+
+.rx-word-mode .rx-image-reading-line{display:none}.rx-image-reading-word{position:absolute;box-sizing:border-box;border-radius:3px;background:#7bc39d66;border:1px solid #2e785b99;box-shadow:0 0 0 1px #e8fff438;mix-blend-mode:multiply;pointer-events:none}.rx-night .rx-image-reading-word{background:#60b9ff70;border-color:#2e75b7c9;box-shadow:0 0 0 1px #b8e3ff55,0 0 8px #80bdff25}
