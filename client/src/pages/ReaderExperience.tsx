@@ -18,6 +18,7 @@ import {useReaderProtection,ReaderAccountStamp} from '../components/ReaderProtec
 import {usePageLineMap} from '../hooks/usePageLineMap';
 import {activeImageLine,activeImageWord,exactWordTime,imageLineTime,ImageReadingLine,ImageReadingWord} from '../utils/pageLineFocus';
 import {journeySeekTarget} from '../utils/readingJourney';
+import {advanceReadingSpread} from '../utils/readingSpread';
 
 function preference(key:string,fallback:string){try{return localStorage.getItem(key)||fallback;}catch{return fallback;}}
 function remember(key:string,value:string){try{localStorage.setItem(key,value);}catch{/* Reading works without browser storage. */}}
@@ -58,7 +59,6 @@ export function Reader(){
     void (cached?Promise.resolve({page:cached}):api.library.page(bookId,number)).then(response=>{if(live){setPage(response.page);}}).catch(e=>{if(live)setError(e.message);});
     return()=>{live=false;};
   },[book,bookId,number,navigate,user?.id]);
-  useEffect(()=>{if(audio.mode==='book'&&!audio.playlist?.completed&&audio.target?.bookId===bookId&&audio.target.number!==number){setToc(false);navigate(`/read/${bookId}/${audio.target.number}`,{replace:true});}},[audio.mode,audio.playlist?.completed,audio.target?.bookId,audio.target?.number,bookId,number,navigate]);
   useEffect(()=>{setZoom(false);},[bookId]);
   const heldPage=heldSpread?.right.bookId===bookId?(heldSpread.right.number===number?heldSpread.right:heldSpread.left.number===number?heldSpread.left:null):null;
   const page=audio.mode==='book'&&audio.target?.bookId===bookId&&audio.target.number===number&&audio.target.page?audio.target.page:loadedPage?.bookId===bookId&&loadedPage.number===number?loadedPage:heldPage;
@@ -74,6 +74,13 @@ export function Reader(){
   const fullBook=audio.mode==='book'&&Boolean(session&&!session.completed),voices=recordedPages(book?.pages||[]),voiceIndex=voices.indexOf(number),voicePosition=voiceIndex<0?session?.index||0:voiceIndex;
   const previous=fullBook?voices[voicePosition-1]:book?.pages?.[index-1]?.number,next=fullBook?voices[voicePosition+1]:physicalNext;
   const playing=(active||fullBook)&&audio.status==='playing',loading=fullBook&&audio.status==='loading';
+  useEffect(()=>{
+    if(audio.mode!=='book'||audio.playlist?.completed||audio.target?.bookId!==bookId||audio.target.number===number)return;
+    const nextSpread=advanceReadingSpread(held,page,audio.target.page||null,physicalNext,zoom?!zoomSingle:wide&&view!=='single');
+    if(nextSpread)setHeldSpread(nextSpread);
+    // An outgoing pair stays visible until navigation reaches the next spread.
+    setToc(false);navigate(`/read/${bookId}/${audio.target.number}`,{replace:true});
+  },[audio.mode,audio.playlist?.completed,audio.target?.bookId,audio.target?.number,audio.target?.page,bookId,number,navigate,held,page,physicalNext,zoom,zoomSingle,wide,view]);
   const go=(target:number)=>{setHeldSpread(null);setToc(false);if(fullBook&&voices.some(voice=>voice>=target)){audio.jumpBook(target);return;}audio.stop();navigate(`/read/${bookId}/${target}`);};
   const goRef=useRef(go);goRef.current=go;
   useEffect(()=>{const key=(event:KeyboardEvent)=>{if(event.defaultPrevented||event.altKey||event.ctrlKey||event.metaKey||zoom||(event.target as HTMLElement)?.closest('input,select,textarea,button,a,[contenteditable="true"]'))return;const target=event.key==='ArrowLeft'?next:event.key==='ArrowRight'?previous:undefined;if(target!==undefined){event.preventDefault();goRef.current(target);}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[previous,next,zoom]);

@@ -1,6 +1,19 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=require('typescript');
 const compile=file=>ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/',file),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.ReactJSX}}).outputText;
 const utils={exports:{}};vm.runInNewContext(compile('utils/pageLineFocus.ts'),utils);
+const spreadUtils={exports:{}};vm.runInNewContext(compile('utils/readingSpread.ts'),spreadUtils);
+test('continuous reading holds right then left, turns only beyond the pair and skips sheets without a recording',()=>{
+ const {advanceReadingSpread}=spreadUtils.exports,page=number=>({bookId:5,number});
+ const right=page(12),left=page(13);let held=advanceReadingSpread(null,right,left,13,true);
+ assert.equal(held.right,right);assert.equal(held.left,left);assert.equal(advanceReadingSpread(held,right,left,13,true),held);
+ assert.equal(advanceReadingSpread(held,left,page(14),14,true),null);
+ held=advanceReadingSpread(null,page(14),page(15),15,true);assert.equal(held.right.number,14);assert.equal(held.left.number,15);
+ assert.equal(advanceReadingSpread(held,page(15),page(16),16,true),null);
+ assert.equal(advanceReadingSpread(null,right,page(14),13,true),null);
+ assert.equal(advanceReadingSpread(null,right,left,13,false),null);
+ assert.equal(advanceReadingSpread(null,right,{bookId:6,number:13},13,true),null);
+ assert.equal(advanceReadingSpread(null,page(23),page(25),25,true).right.number,23);
+});
 function fixture(){
  const slots=[],effects=[],calls=[];let cursor=0;
  const react={useRef:initial=>{const i=cursor++;return slots[i]||(slots[i]={current:initial});},useState:initial=>{const i=cursor++;if(!(i in slots))slots[i]=initial;return [slots[i],value=>slots[i]=typeof value==='function'?value(slots[i]):value];},useEffect:fn=>effects.push(fn),useLayoutEffect:fn=>effects.push(fn)};
