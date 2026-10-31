@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "build:demo": "tsc -b && vite build --mode demo --base=/BonBook/",
     "build:preproduction": "tsc -b && vite build --mode preproduction --base=/ --outDir dist-preproduction",
-    "test:demo": "node --test tests/demo.test.cjs tests/covers.test.cjs tests/narration.test.cjs tests/audioFiles.test.cjs tests/bookAudioQueue.test.cjs tests/library.test.cjs tests/readingProgress.test.cjs tests/pageCanvas.test.cjs tests/readingJourney.test.cjs tests/journeyPlayback.test.cjs tests/lunarLight.test.cjs tests/pageLineFocus.test.cjs",
+    "test:demo": "node --test tests/demo.test.cjs tests/covers.test.cjs tests/narration.test.cjs tests/audioFiles.test.cjs tests/bookAudioQueue.test.cjs tests/library.test.cjs tests/readingProgress.test.cjs tests/pageCanvas.test.cjs tests/readingJourney.test.cjs tests/journeyPlayback.test.cjs tests/lunarLight.test.cjs tests/pageLineFocus.test.cjs tests/readerBook.test.cjs",
     "preview:demo": "vite preview --mode demo --base=/BonBook/ --host 127.0.0.1",
     "preview": "vite preview",
     "preview:journey": "vite --config vite.journey.config.ts --host 127.0.0.1 --port 3152 --strictPort",

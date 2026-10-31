@@ -1,0 +1,45 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=require('typescript');
+const compile=file=>ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/',file),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.ReactJSX}}).outputText;
+const utils={exports:{}};vm.runInNewContext(compile('utils/pageLineFocus.ts'),utils);
+function fixture(){
+ const slots=[],effects=[],calls=[];let cursor=0;
+ const react={useRef:initial=>{const i=cursor++;return slots[i]||(slots[i]={current:initial});},useState:initial=>{const i=cursor++;if(!(i in slots))slots[i]=initial;return [slots[i],value=>slots[i]=typeof value==='function'?value(slots[i]):value];},useEffect:fn=>effects.push(fn),useLayoutEffect:fn=>effects.push(fn)};
+ const jsx=(type,props)=>({type,props}),context={exports:{},window:{matchMedia:()=>({matches:false}),setTimeout:()=>1,clearTimeout(){}},require:name=>name==='react'?react:name==='react/jsx-runtime'?{jsx,jsxs:jsx}:name==='../utils/pageLineFocus'?utils.exports:name==='../services/api'?{mediaUrl:url=>url}:{}};
+ vm.runInNewContext(compile('components/ReaderBook.tsx'),context);
+ const page=number=>({bookId:5,number,content:'متن کتاب',sourceImageUrl:'/private/page-'+number,audioUrl:'/private/voice-'+number});
+ const word={start:0,end:3,time:4,endTime:5,rects:[{x:.4,y:.2,width:.1,height:.03}]};
+ const defaults={page:page(12),facing:page(13),hasFacing:true,title:'کتاب',single:false,words:[word],facingWords:[word],onZoom:()=>calls.push('zoom'),onFacing:()=>calls.push('turn'),onReadWord:(w,p)=>calls.push({word:w,page:p.number})};
+ const render=props=>{cursor=0;const tree=context.exports.ReaderBook({...defaults,...props});while(effects.length)effects.shift()();return tree;};
+ const find=(tree,part)=>{if(!tree||typeof tree!=='object')return null;if(tree.props?.className?.split(' ').includes(part))return tree;for(const child of [tree.props?.children].flat()){const found=find(child,part);if(found)return found;}return null;};
+ const event=(x=450,y=215,detail=1)=>({clientX:x,clientY:y,detail,currentTarget:{querySelector:()=>({width:1000,height:1000,getBoundingClientRect:()=>({left:0,top:0,width:1000,height:1000})})}});
+ const tap=(button,x,y)=>{button.props.onPointerDown(event(x,y));button.props.onClick(event(x,y));};
+ return {render,find,event,tap,calls,page,word,slots};
+}
+test('touches on an unloaded, unmatched or untimed facing sheet never turn the book',()=>{
+ for(const facingWords of [undefined,[],[{start:0,end:3,rects:[{x:.4,y:.2,width:.1,height:.03}]}]]){
+  const f=fixture(),tree=f.render({facingWords}),left=f.find(tree,'rx-facing-page');f.tap(left,450,215);f.tap(left,100,800);
+  assert.equal(f.calls.includes('turn'),false);assert.equal(f.calls.includes('zoom'),false);assert.equal(f.calls.length,2);assert.equal(f.calls[0].page,13);assert.equal(f.calls[1].word,null);
+ }
+});
+test('a word touch keeps its original sheet and word even if the follow camera moves before release',()=>{
+ const f=fixture(),tree=f.render(),left=f.find(tree,'rx-facing-page'),down=f.event();left.props.onPointerDown(down);
+ left.props.onClick({...f.event(),currentTarget:{querySelector:()=>({width:1000,height:1000,getBoundingClientRect:()=>({left:0,top:300,width:1000,height:1000})})}});
+ assert.equal(f.calls.length,1);assert.equal(f.calls[0].word,f.word);assert.equal(f.calls[0].page,13);
+});
+test('swipes and canceled touches do not become word reads or page clicks',()=>{
+ const f=fixture(),left=f.find(f.render(),'rx-facing-page');left.props.onPointerDown(f.event());left.props.onClick(f.event(550,215));
+ left.props.onPointerDown(f.event());left.props.onPointerCancel();left.props.onClick(f.event());assert.equal(f.calls.length,0);
+});
+test('reading the left sheet leaves both physical pages in place without a turn animation',()=>{
+ const f=fixture();f.render();const tree=f.render({page:f.page(13),facing:f.page(12),activeOnLeft:true});
+ assert.ok(tree.props.className.includes('rx-active-left'));assert.equal(f.find(tree,'rx-current-page').props['data-page-number'],13);assert.equal(f.find(tree,'rx-facing-page').props['data-page-number'],12);assert.equal(f.find(tree,'rx-turning-leaf'),null);
+ const again=f.render({page:f.page(12),facing:f.page(13)});assert.equal(f.find(again,'rx-turning-leaf'),null);
+});
+test('single-sheet mode shows the active page and the eye camera centers the active left sheet',()=>{
+ const f=fixture(),tree=f.render({page:f.page(13),facing:f.page(12),activeOnLeft:true,single:true});assert.ok(!tree.props.className.includes('rx-active-left'));assert.equal(f.find(tree,'rx-current-page').props['data-page-number'],13);
+ const {bookFocusTransform}=utils.exports;assert.ok(bookFocusTransform(false,null,1,true).startsWith('translate(-6.25%,'));assert.equal(bookFocusTransform(true,null,1,true),bookFocusTransform(true,null));
+});
+test('keyboard activation of the facing sheet does not accidentally navigate, while current-page zoom remains available',()=>{
+ const f=fixture(),tree=f.render();f.find(tree,'rx-facing-page').props.onClick(f.event(0,0,0));assert.equal(f.calls[0].page,13);assert.equal(f.calls[0].word,null);
+ f.find(tree,'rx-current-page').props.onClick(f.event(0,0,0));assert.equal(f.calls[1],'zoom');
+});

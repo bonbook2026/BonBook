@@ -10,8 +10,8 @@ export function hitImageWord(words:ImageReadingWord[],x:number,y:number){
  if(x<0||x>1||y<0||y>1)return null;
  return words.find(word=>word.rects.some(rect=>x>=rect.x&&x<=rect.x+rect.width&&y>=rect.y-.002&&y<=rect.y+rect.height+.002))||null;
 }
-export function bookFocusTransform(single:boolean,line:ImageReadingLine|null,visibleFraction=1){
- const scale=single?1.8:2.25,u=single?.5:.75,edge=Math.max(.02,Math.min(1,visibleFraction))/(2*scale),v=Math.max(edge,Math.min(1-edge,line?line.y+line.height/2:.22));
+export function bookFocusTransform(single:boolean,line:ImageReadingLine|null,visibleFraction=1,activeOnLeft=false){
+ const scale=single?1.8:2.25,u=single?.5:activeOnLeft?.25:.75,edge=Math.max(.02,Math.min(1,visibleFraction))/(2*scale),v=Math.max(edge,Math.min(1-edge,line?line.y+line.height/2:.22));
  return `translate(${(.5-u*scale)*100}%,${(.5-v*scale)*100}%) scale(${scale})`;
 }
 export function activeImageLine(lines:ImageReadingLine[],offset:number,time:number,useTimes:boolean){

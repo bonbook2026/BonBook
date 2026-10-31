@@ -28,6 +28,7 @@ export function Reader(){
   const {canAccess}=useSiteFeatures();
   const params=useParams(),bookId=Number(params.bookId),number=Number(params.page),navigate=useNavigate(),location=useLocation();
   const [book,setBook]=useState<LibraryBook|null>(null),[loadedPage,setPage]=useState<LibraryPage|null>(null),[facing,setFacing]=useState<LibraryPage|null>(null);
+  const [heldSpread,setHeldSpread]=useState<{right:LibraryPage;left:LibraryPage}|null>(null);
   const {theme:siteTheme,setTheme:setSiteTheme}=useTheme(),theme=siteTheme==='night'?'night':'paper';
   const setTheme=(value:string)=>setSiteTheme(value==='night'?'night':'day');
   const [eye,setEye]=useState(()=>preference('bonbook_reader_eye','off')==='on');
@@ -62,13 +63,17 @@ export function Reader(){
   const page=audio.mode==='book'&&audio.target?.bookId===bookId&&audio.target.number===number&&audio.target.page?audio.target.page:loadedPage?.bookId===bookId&&loadedPage.number===number?loadedPage:null;
   useEffect(()=>{if(!autoSave||!page||page.bookId!==bookId||page.number!==number)return;saveDeviceReading({bookId,pageNumber:number,title:book?.title||'',heading:page.heading,updatedAt:Date.now()});setBookmark(number);if(user)void api.library.saveProgress(bookId,number).catch(()=>{});},[autoSave,page?.bookId,page?.number,bookId,number,book?.title,user?.id]);
   const visualPage=page||(loadedPage?.bookId===bookId?loadedPage:null),index=book?.pages?.findIndex(p=>p.number===number)??-1,physicalNext=book?.pages?.[index+1]?.number;
-  useEffect(()=>{let live=true;setFacing(null);if(!book||(zoom?zoomSingle:!wide||view==='single')||physicalNext===undefined)return;void api.library.page(book.id,physicalNext).then(result=>{if(live)setFacing(result.page);}).catch(()=>{});return()=>{live=false;};},[book?.id,physicalNext,view,wide,zoom,zoomSingle]);
-  const shownFacing=facing?.bookId===bookId&&facing.number===physicalNext?facing:null;
+  const held=heldSpread?.right.bookId===bookId&&(heldSpread.right.number===number||heldSpread.left.number===number)?heldSpread:null;
+  const activeOnLeft=Boolean(held&&held.left.number===number),oppositeNumber=activeOnLeft?held!.right.number:physicalNext;
+  useEffect(()=>{if(heldSpread&&!held)setHeldSpread(null);},[heldSpread,held]);
+  useEffect(()=>{let live=true;setFacing(null);if(!book||(zoom?zoomSingle:!wide||view==='single')||oppositeNumber===undefined)return;void api.library.page(book.id,oppositeNumber).then(result=>{if(live)setFacing(result.page);}).catch(()=>{});return()=>{live=false;};},[book?.id,oppositeNumber,view,wide,zoom,zoomSingle]);
+  const heldOther=held?(activeOnLeft?held.right:held.left):null;
+  const shownFacing=facing?.bookId===bookId&&facing.number===oppositeNumber?facing:heldOther;
   const active=audio.target?.bookId===bookId&&audio.target.number===number,session=audio.playlist?.bookId===bookId?audio.playlist:null;
   const fullBook=audio.mode==='book'&&Boolean(session&&!session.completed),voices=recordedPages(book?.pages||[]),voiceIndex=voices.indexOf(number),voicePosition=voiceIndex<0?session?.index||0:voiceIndex;
   const previous=fullBook?voices[voicePosition-1]:book?.pages?.[index-1]?.number,next=fullBook?voices[voicePosition+1]:physicalNext;
   const playing=(active||fullBook)&&audio.status==='playing',loading=fullBook&&audio.status==='loading';
-  const go=(target:number)=>{setToc(false);if(fullBook&&voices.some(voice=>voice>=target)){audio.jumpBook(target);return;}audio.stop();navigate(`/read/${bookId}/${target}`);};
+  const go=(target:number)=>{setHeldSpread(null);setToc(false);if(fullBook&&voices.some(voice=>voice>=target)){audio.jumpBook(target);return;}audio.stop();navigate(`/read/${bookId}/${target}`);};
   const goRef=useRef(go);goRef.current=go;
   useEffect(()=>{const key=(event:KeyboardEvent)=>{if(event.defaultPrevented||event.altKey||event.ctrlKey||event.metaKey||zoom||(event.target as HTMLElement)?.closest('input,select,textarea,button,a,[contenteditable="true"]'))return;const target=event.key==='ArrowLeft'?next:event.key==='ArrowRight'?previous:undefined;if(target!==undefined){event.preventDefault();goRef.current(target);}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[previous,next,zoom]);
   const replay=()=>{if(book){setContinuous(true);audio.playBook(book);}};
@@ -86,7 +91,10 @@ export function Reader(){
     if(!book||Date.now()-swiped.current<500)return;
     if(!target.audioUrl){setError('برای این صفحه هنوز ویس ثبت نشده است.');return;}
     const seconds=exactWordTime(word);
-    if(seconds===null){setError('زمان دقیق این کلمه هنوز مطمئن نیست؛ می‌توانی از پخش‌کننده استفاده کنی.');return;}
+    if(seconds===null){const map=target.number===number?lineMap:facingMap;setError(!map||map.status==='processing'?'جای کلمه‌های این صفحه در حال آماده‌شدن است؛ کمی بعد دوباره کلمه را لمس کن.':'زمان دقیق این کلمه هنوز مطمئن نیست؛ می‌توانی از پخش‌کننده استفاده کنی.');return;}
+    // Selecting the opposite sheet changes the audio target, not the open spread.
+    if(target.number!==number&&page&&shownFacing&&!(zoom?zoomSingle:view==='single'||!wide)&&!held)setHeldSpread({right:page,left:shownFacing});
+    setPage(target);
     setError('');setToc(false);const same=active&&target.bookId===bookId&&target.number===number;
     if(continuous&&voices.includes(target.number)&&(!same||!fullBook))void audio.playBook(book,target.number,target,0,seconds);
     else if(same&&audio.durationSeconds>0)audio.seek(seconds/audio.durationSeconds*100,true);
@@ -111,7 +119,7 @@ export function Reader(){
   const cancelJourneyDrag=()=>{if(journeyWasPlaying.current)audio.resume();journeyWasPlaying.current=false;};
   const seekJourney=async(position:number)=>{
     const target=journeySeekTarget(position,book?.pages||[]);if(!book||!target)return;
-    journeyWasPlaying.current=false;setToc(false);setError('');
+    journeyWasPlaying.current=false;setHeldSpread(null);setToc(false);setError('');
     const voice=voices.find(value=>value>=target.number);
     if(voice!==undefined){setContinuous(true);await audio.playBook(book,voice,undefined,voice===target.number?target.percent:0);}
     else{audio.stop();navigate(`/read/${bookId}/${target.number}`);}
@@ -137,7 +145,7 @@ export function Reader(){
         {error&&<p className="rx-notice" role="alert">{error}</p>}
         <div className="rx-desk" aria-busy={!page} onTouchStart={e=>{touch.current={x:e.touches[0].clientX,y:e.touches[0].clientY};}} onTouchEnd={e=>{const start=touch.current;touch.current=null;if(!start)return;const dx=e.changedTouches[0].clientX-start.x,dy=e.changedTouches[0].clientY-start.y;if(Math.abs(dx)>60&&Math.abs(dy)<65){const target=dx<0?next:previous;if(target!==undefined){swiped.current=Date.now();go(target);}}}}>
           <span className="rx-desk-ornament" aria-hidden="true">B</span><button className="rx-page-arrow rx-previous" disabled={previous===undefined} onClick={()=>previous!==undefined&&go(previous)} aria-label={fullBook?'ویس قبلی کتاب':'ورق به صفحهٔ قبل'}><Icon name="chevron" className="rx-flipped"/></button>
-          {visualPage?<ReaderBook words={page&&lineMap?.status==='ready'?lineMap.words:undefined} facingWords={facingMap?.status==='ready'?facingMap.words:undefined} facingLines={facingMap?.status==='ready'?facingMap.lines:[]} focusWord={focusWord} onReadWord={readFromWord} lines={page&&lineMap?.status==='ready'?lineMap.lines:[]} onReadLine={readFromLine} eye={eye} focusLine={page?focusLine:null} page={visualPage} facing={shownFacing} hasFacing={physicalNext!==undefined} title={book.title} single={view==='single'||!wide} onZoom={openZoom} onFacing={()=>physicalNext!==undefined&&go(physicalNext)}/>:null}
+          {visualPage?<ReaderBook activeOnLeft={activeOnLeft} words={page&&lineMap?.status==='ready'?lineMap.words:undefined} facingWords={facingMap?.status==='ready'?facingMap.words:undefined} facingLines={facingMap?.status==='ready'?facingMap.lines:[]} focusWord={focusWord} onReadWord={readFromWord} lines={page&&lineMap?.status==='ready'?lineMap.lines:[]} onReadLine={readFromLine} eye={eye} focusLine={page?focusLine:null} page={visualPage} facing={shownFacing} hasFacing={oppositeNumber!==undefined} title={book.title} single={view==='single'||!wide} onZoom={openZoom} onFacing={()=>physicalNext!==undefined&&go(physicalNext)}/>:null}
           {!page&&!error&&<div className="rx-page-loading" role="status">در حال ورق‌زدن…</div>}
           <button className="rx-page-arrow rx-next" disabled={next===undefined} onClick={()=>next!==undefined&&go(next)} aria-label={fullBook?'ویس بعدی کتاب':'ورق به صفحهٔ بعد'}><Icon name="chevron"/></button>
         </div>
@@ -149,7 +157,7 @@ export function Reader(){
       </section>
     </main>}
     {!zoom&&playback&&<footer className="rx-player" aria-label="پخش‌کنندهٔ روایت کتاب"><ReaderPlayback state={playback}/></footer>}
-    <ReaderImmersive readError={error} words={page&&lineMap?.status==='ready'?lineMap.words:undefined} facingWords={facingMap?.status==='ready'?facingMap.words:undefined} facingLines={facingMap?.status==='ready'?facingMap.lines:[]} focusWord={focusWord} onReadWord={readFromWord} lines={page&&lineMap?.status==='ready'?lineMap.lines:[]} onReadLine={readFromLine} eye={eye} onEye={()=>setEye(value=>!value)} focusLine={page?focusLine:null} open={zoom} onClose={()=>setZoom(false)} book={book} page={page} visualPage={visualPage} facing={shownFacing} hasFacing={physicalNext!==undefined} number={number} heading={heading} night={theme==='night'} onTheme={()=>setTheme(theme==='night'?'paper':'night')} single={zoomSingle} onSingle={()=>setZoomSingle(value=>!value)} previous={previous} next={next} onGo={go} onFacing={()=>physicalNext!==undefined&&go(physicalNext)} offset={offset} terms={terms} playback={playback} onJourneySeek={seekJourney} onJourneyDragStart={beginJourneyDrag} onJourneyDragCancel={cancelJourneyDrag}/>
+    <ReaderImmersive activeOnLeft={activeOnLeft} readError={error} words={page&&lineMap?.status==='ready'?lineMap.words:undefined} facingWords={facingMap?.status==='ready'?facingMap.words:undefined} facingLines={facingMap?.status==='ready'?facingMap.lines:[]} focusWord={focusWord} onReadWord={readFromWord} lines={page&&lineMap?.status==='ready'?lineMap.lines:[]} onReadLine={readFromLine} eye={eye} onEye={()=>setEye(value=>!value)} focusLine={page?focusLine:null} open={zoom} onClose={()=>setZoom(false)} book={book} page={page} visualPage={visualPage} facing={shownFacing} hasFacing={oppositeNumber!==undefined} number={number} heading={heading} night={theme==='night'} onTheme={()=>setTheme(theme==='night'?'paper':'night')} single={zoomSingle} onSingle={()=>setZoomSingle(value=>!value)} previous={previous} next={next} onGo={go} onFacing={()=>physicalNext!==undefined&&go(physicalNext)} offset={offset} terms={terms} playback={playback} onJourneySeek={seekJourney} onJourneyDragStart={beginJourneyDrag} onJourneyDragCancel={cancelJourneyDrag}/>
 
   </div>;
 }

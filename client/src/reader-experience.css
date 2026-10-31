@@ -54,3 +54,6 @@
 .rx-night .rx-eye-toggle[aria-pressed=true]{color:#10213b!important}
 
 .rx-word-mode .rx-image-reading-line{display:none}.rx-image-reading-word{position:absolute;box-sizing:border-box;border-radius:3px;background:#7bc39d66;border:1px solid #2e785b99;box-shadow:0 0 0 1px #e8fff438;mix-blend-mode:multiply;pointer-events:none}.rx-night .rx-image-reading-word{background:#60b9ff70;border-color:#2e75b7c9;box-shadow:0 0 0 1px #b8e3ff55,0 0 8px #80bdff25}
+
+/* Keep both sheets in place when narration moves to a touched word on the left. */
+.rx-active-left .rx-current-page{order:2;border-radius:5px 0 0 3px}.rx-active-left .rx-facing-page{order:1;border-radius:0 5px 3px 0}.rx-active-left .rx-current-page .rx-paper-sheen{background:linear-gradient(90deg,#cbbf9e10,transparent 5%,transparent 86%,#75694536)}.rx-active-left .rx-facing-page .rx-paper-sheen{background:linear-gradient(90deg,#75694530,transparent 10%,transparent 97%,#b9ad9410)}.rx-night .rx-active-left .rx-current-page .rx-paper-sheen{background:linear-gradient(90deg,#8facd010,transparent 5%,transparent 86%,#20365040)}.rx-night .rx-active-left .rx-facing-page .rx-paper-sheen{background:linear-gradient(90deg,#20365035,transparent 12%,transparent 96%,#8facd010)}
