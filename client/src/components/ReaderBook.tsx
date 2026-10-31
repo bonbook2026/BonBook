@@ -23,6 +23,8 @@ export function ReaderSheet({page,title,large=false,line=null}:{page:LibraryPage
 
 interface SpreadProps{page:LibraryPage;facing:LibraryPage|null;hasFacing:boolean;title:string;single:boolean;onZoom:()=>void;onFacing:()=>void;zoomLabel?:string;focusLine?:ImageReadingLine|null;eye?:boolean}
 export function ReaderBook({page,facing,hasFacing,title,single,onZoom,onFacing,zoomLabel='بزرگ‌نمایی صفحهٔ جاری',focusLine=null,eye=false}:SpreadProps){
+  const stage=useRef<HTMLDivElement>(null),[visibleFraction,setVisibleFraction]=useState(1);
+  useLayoutEffect(()=>{const element=stage.current,parent=element?.parentElement;if(!eye||!element||!parent)return;const measure=()=>setVisibleFraction(Math.min(1,parent.clientHeight/Math.max(1,element.clientHeight)));measure();const resize=new ResizeObserver(measure);resize.observe(element);resize.observe(parent);return()=>resize.disconnect();},[eye,single]);
   const previous=useRef<{page:LibraryPage;facing:LibraryPage|null}|null>(null);
   const [turn,setTurn]=useState<{direction:'next'|'previous';front:LibraryPage;back:LibraryPage}|null>(null);
   useLayoutEffect(()=>{
@@ -33,7 +35,7 @@ export function ReaderBook({page,facing,hasFacing,title,single,onZoom,onFacing,z
     const timer=window.setTimeout(()=>setTurn(null),720);return()=>window.clearTimeout(timer);
   },[page.bookId,page.number]);
   useEffect(()=>{previous.current={page,facing};},[page,facing]);
-  return <div className={'rx-book-stage'+(single?' rx-single':'')+(eye?' rx-eye-focus':'')} onContextMenu={event=>event.preventDefault()} onDragStart={event=>event.preventDefault()}><div className="rx-book-object" style={eye?{transformOrigin:'0 0',transform:bookFocusTransform(single,focusLine)}:undefined}>
+  return <div ref={stage} className={'rx-book-stage'+(single?' rx-single':'')+(eye?' rx-eye-focus':'')} onContextMenu={event=>event.preventDefault()} onDragStart={event=>event.preventDefault()}><div className="rx-book-object" style={eye?{transformOrigin:'0 0',transform:bookFocusTransform(single,focusLine,visibleFraction)}:undefined}>
     <div className="rx-book-edge" aria-hidden="true"/><div className="rx-book-spread">
       <button type="button" className="rx-paper-page rx-current-page" aria-label={zoomLabel} onClick={onZoom}><ReaderSheet page={page} title={title} line={focusLine}/><span className="rx-paper-sheen"/></button>
       <button type="button" className="rx-paper-page rx-facing-page" aria-label={hasFacing?'رفتن به صفحهٔ روبه‌رو':'پایان کتاب'} disabled={!hasFacing} onClick={onFacing}>
