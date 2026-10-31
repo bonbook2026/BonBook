@@ -3,7 +3,7 @@ import {LibraryPage} from '../types';
 import {mediaUrl} from '../services/api';
 import {ReaderAccountStamp} from './ReaderProtection';
 import {ReaderPageCanvas} from './ReaderPageCanvas';
-import {ImageReadingLine,bookFocusTransform} from '../utils/pageLineFocus';
+import {ImageReadingLine,bookFocusTransform,hitImageLine} from '../utils/pageLineFocus';
 import {ReaderLineFocus} from './ReaderLineFocus';
 
 export function readerPageImage(page:LibraryPage){
@@ -21,8 +21,9 @@ export function ReaderSheet({page,title,large=false,line=null}:{page:LibraryPage
     </div>;
 }
 
-interface SpreadProps{page:LibraryPage;facing:LibraryPage|null;hasFacing:boolean;title:string;single:boolean;onZoom:()=>void;onFacing:()=>void;zoomLabel?:string;focusLine?:ImageReadingLine|null;eye?:boolean}
-export function ReaderBook({page,facing,hasFacing,title,single,onZoom,onFacing,zoomLabel='بزرگ‌نمایی صفحهٔ جاری',focusLine=null,eye=false}:SpreadProps){
+interface SpreadProps{page:LibraryPage;facing:LibraryPage|null;hasFacing:boolean;title:string;single:boolean;onZoom:()=>void;onFacing:()=>void;zoomLabel?:string;focusLine?:ImageReadingLine|null;eye?:boolean;lines?:ImageReadingLine[];onReadLine?:(line:ImageReadingLine)=>void}
+export function ReaderBook({page,facing,hasFacing,title,single,onZoom,onFacing,zoomLabel='بزرگ‌نمایی صفحهٔ جاری',focusLine=null,eye=false,lines=[],onReadLine}:SpreadProps){
+  const pointer=useRef<{x:number;y:number}|null>(null);
   const stage=useRef<HTMLDivElement>(null),[visibleFraction,setVisibleFraction]=useState(1);
   useLayoutEffect(()=>{const element=stage.current,parent=element?.parentElement;if(!eye||!element||!parent)return;const measure=()=>setVisibleFraction(Math.min(1,parent.clientHeight/Math.max(1,element.clientHeight)));measure();const resize=new ResizeObserver(measure);resize.observe(element);resize.observe(parent);return()=>resize.disconnect();},[eye,single]);
   const previous=useRef<{page:LibraryPage;facing:LibraryPage|null}|null>(null);
@@ -37,7 +38,12 @@ export function ReaderBook({page,facing,hasFacing,title,single,onZoom,onFacing,z
   useEffect(()=>{previous.current={page,facing};},[page,facing]);
   return <div ref={stage} className={'rx-book-stage'+(single?' rx-single':'')+(eye?' rx-eye-focus':'')} onContextMenu={event=>event.preventDefault()} onDragStart={event=>event.preventDefault()}><div className="rx-book-object" style={eye?{transformOrigin:'0 0',transform:bookFocusTransform(single,focusLine,visibleFraction)}:undefined}>
     <div className="rx-book-edge" aria-hidden="true"/><div className="rx-book-spread">
-      <button type="button" className="rx-paper-page rx-current-page" aria-label={zoomLabel} onClick={onZoom}><ReaderSheet page={page} title={title} line={focusLine}/><span className="rx-paper-sheen"/></button>
+      <button type="button" className="rx-paper-page rx-current-page" aria-label={zoomLabel} title={lines.length?'هر خط را لمس کن تا روایت از همان‌جا پخش شود':undefined} onPointerDown={event=>{pointer.current={x:event.clientX,y:event.clientY};}} onPointerCancel={()=>{pointer.current=null;}} onClick={event=>{
+       const start=pointer.current;pointer.current=null;if(start&&Math.hypot(event.clientX-start.x,event.clientY-start.y)>12)return;
+       const canvas=event.currentTarget.querySelector<HTMLCanvasElement>('.reader-page-canvas');
+       if(event.detail&&canvas&&lines.length&&onReadLine){const box=canvas.getBoundingClientRect(),scale=Math.min(box.width/canvas.width,box.height/canvas.height),width=canvas.width*scale,height=canvas.height*scale,x=(event.clientX-box.left-(box.width-width)/2)/width,y=(event.clientY-box.top-(box.height-height)/2)/height,line=hitImageLine(lines,x,y);if(line){onReadLine(line);return;}}
+       onZoom();
+      }}><ReaderSheet page={page} title={title} line={focusLine}/><span className="rx-paper-sheen"/></button>
       <button type="button" className="rx-paper-page rx-facing-page" aria-label={hasFacing?'رفتن به صفحهٔ روبه‌رو':'پایان کتاب'} disabled={!hasFacing} onClick={onFacing}>
         {facing?<ReaderSheet page={facing} title={title}/>:<div className="rx-end-page"><span>✳</span><strong>{hasFacing?'صفحهٔ بعد':'هر پایان، یک آغاز تازه.'}</strong><small dir="ltr">BonBook</small></div>}<span className="rx-paper-sheen"/>
       </button>

@@ -31,6 +31,18 @@ test('a newer sky seek wins when old page requests return out of order',async()=
 test('refreshing an expired grant retains the sky seek offset',async()=>{
  const f=audioFixture(),page={...f.page(4),audioUrl:'/api/media/track-4?expires=1'};await f.audio.playBook(f.book,4,page,40);await flush();f.players[0].onloadedmetadata();assert.equal(f.players[0].currentTime,48);assert.equal(f.state().target.number,4);
 });
+test('a touched image line starts at its real seconds before duration loads and keeps continuous playback',async()=>{
+ const f=audioFixture();await f.audio.playBook(f.book,4,undefined,0,17.25);const player=f.players[0];player.onloadedmetadata();assert.equal(player.currentTime,17.25);assert.equal(f.state().mode,'book');
+ f.audio.nextBook();await flush();player.onloadedmetadata();assert.equal(player.currentTime,0);
+});
+test('line seconds survive an expired grant and are never carried into a different recording',async()=>{
+ const f=audioFixture();await f.audio.playBook(f.book,4,{...f.page(4),audioUrl:'/api/media/track-4?expires=1'},0,23);await flush();f.players[0].onloadedmetadata();assert.equal(f.players[0].currentTime,23);
+ await f.audio.playBook(f.book,3,undefined,0,50);f.players[0].onloadedmetadata();assert.equal(f.state().target.number,4);assert.equal(f.players[0].currentTime,0);
+ f.audio.play({bookId:1,number:4,title:'Fixture',language:'fa-IR',...f.page(4)},1,31);f.players[0].onloadedmetadata();assert.equal(f.players[0].currentTime,31);assert.equal(f.state().mode,'page');
+});
+test('touching a line while paused resumes at the new time through a single expired-grant refresh',async()=>{
+ const f=audioFixture();await f.audio.playBook(f.book,4);f.players[0].onloadedmetadata();f.audio.pause();f.state().target.audioUrl='/api/media/track-4?expires=1';f.audio.seek(50,true);await flush();f.players[0].onloadedmetadata();assert.equal(f.players[0].currentTime,60);assert.equal(f.state().status,'playing');
+});
 function controlFixture(){
  const calls={seek:[],start:0,cancel:0},cleanups=[],react={useState:value=>[value,()=>{}],useRef:current=>({current}),useEffect:effect=>{const cleanup=effect();if(cleanup)cleanups.push(cleanup);}};
  const c={exports:{},require:name=>name==='react'?react:journey};vm.runInNewContext(source('hooks/useReaderJourney.ts'),c);

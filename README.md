@@ -94,6 +94,10 @@ guessed. An eye control zooms and follows the original book image in ordinary an
 fullscreen reading, without changing transcript font size. It is remembered on
 the device. Position maps are prepared in a bounded background queue and cached
 privately; replacing source images, text or timings invalidates the map.
+Touching a matched printed line seeks its real recording timestamp and starts or
+resumes playback, including before audio metadata has loaded. Margins still open
+the larger view; swipes do not seek audio. Lines without a known timestamp do not
+invent one. The same controls work in the immersive view.
 
 Fullscreen reading includes a sky journey driven by the real page order and the
 current recording's playback percentage. The opening and closing two pages hold

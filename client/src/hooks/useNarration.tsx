@@ -45,14 +45,14 @@ export function useNarrationState(){
    window.speechSynthesis.speak(speech);
   };next();
  };
- const play=(target:NarrationTarget,rate=current.current.rate)=>{stop();startTarget(target,rate);};
- const playBook=(book:LibraryBook,fromNumber?:number,preloadedPage?:LibraryPage,fromPercent=0)=>{
+ const play=(target:NarrationTarget,rate=current.current.rate,fromSeconds=0)=>{stop();startTarget(target,rate,null,undefined,false,false,Math.max(0,fromSeconds));};
+ const playBook=(book:LibraryBook,fromNumber?:number,preloadedPage?:LibraryPage,fromPercent=0,fromSeconds=0)=>{
   stop();publish({target:null});const pages=recordedPages(book.pages||[]);if(!pages.length){publish({error:'این کتاب هنوز ویس ضبط‌شده ندارد.'});return;}
   let firstTrack=true;
   const playback=new BookAudioQueue<NarrationTarget>(pages,{
    load:async number=>{const page=preloadedPage?.bookId===book.id&&preloadedPage.number===number?preloadedPage:(await api.library.page(book.id,number)).page,url=mediaUrl(page.audioUrl);return url?{bookId:book.id,number,title:book.title,content:page.content,language:book.language,audioUrl:url,audioCues:page.audioCues,audioCueMode:page.audioCueMode,page}:null;},
    loading:(index,total)=>{halt();publish({status:bookPaused.current?'paused':'loading',mode:'book',playlist:{bookId:book.id,index,total,completed:false},error:null,offset:-1,position:0,elapsedSeconds:0,durationSeconds:0});},
-   play:(target,index,total)=>{const startPercent=firstTrack&&target.number===fromNumber?fromPercent:0;firstTrack=false;startTarget(target,current.current.rate,{bookId:book.id,index,total,completed:false},()=>{if(queue.current===playback)void playback.next();},bookPaused.current,false,0,startPercent);},
+   play:(target,index,total)=>{const selected=firstTrack&&target.number===fromNumber,startPercent=selected?fromPercent:0,startSeconds=selected?Math.max(0,fromSeconds):0;firstTrack=false;startTarget(target,current.current.rate,{bookId:book.id,index,total,completed:false},()=>{if(queue.current===playback)void playback.next();},bookPaused.current,false,startSeconds,startPercent);},
    complete:played=>{halt();publish({status:'idle',position:100,offset:-1,playlist:{bookId:book.id,index:Math.max(0,pages.length-1),total:pages.length,completed:true},error:played?null:'از این صفحه به بعد ویسی در دسترس نیست؛ می‌توانی پخش را از ابتدای کتاب شروع کنی.'});},
    error:(_error,number)=>{halt();publish({status:'paused',error:`دریافت ویس صفحهٔ ${number.toLocaleString('fa-IR')} انجام نشد؛ دوباره پخش کن یا ویس بعدی را بزن.`});}
   });queue.current=playback;return playback.start(fromNumber);
@@ -67,7 +67,7 @@ export function useNarrationState(){
   if(current.current.target?.audioUrl&&audio.current){if(audio.current.error)audio.current.load();void audio.current.play().then(()=>{if(generation.current===revision&&!bookPaused.current)publish({status:'playing',error:null});}).catch(error=>{if(generation.current===revision&&!(error?.name==='AbortError'&&current.current.status==='paused'))publish({status:'paused',error:'ادامهٔ پخش انجام نشد؛ دوباره دکمهٔ پخش را بزن.'});});}
   else{window.speechSynthesis?.resume();publish({status:'playing',error:null});}
  };
- const seek=(percent:number)=>{const player=audio.current;if(!current.current.target?.audioUrl||!player||!Number.isFinite(player.duration))return;const seconds=Math.max(0,Math.min(100,percent))/100*player.duration;if(expiredMedia(current.current.target.audioUrl)){startTarget(current.current.target,current.current.rate,current.current.playlist,afterTrack.current,current.current.status==='paused',false,seconds);return;}player.currentTime=seconds;player.ontimeupdate?.call(player,new Event('timeupdate'));};
+ const seek=(percent:number,autoplay=false)=>{const player=audio.current;if(!current.current.target?.audioUrl||!player||!Number.isFinite(player.duration))return;const seconds=Math.max(0,Math.min(100,percent))/100*player.duration;if(autoplay)bookPaused.current=false;if(expiredMedia(current.current.target.audioUrl)){startTarget(current.current.target,current.current.rate,current.current.playlist,afterTrack.current,!autoplay&&current.current.status==='paused',false,seconds);return;}player.currentTime=seconds;player.ontimeupdate?.call(player,new Event('timeupdate'));if(autoplay)resume();};
  const setRate=(rate:number)=>{publish({rate});if(current.current.target?.audioUrl&&audio.current)audio.current.playbackRate=rate;else if(current.current.target&&['playing','paused'].includes(current.current.status))play(current.current.target,rate);};
  const nextBook=()=>{void queue.current?.next();},previousBook=()=>{void queue.current?.previous();},jumpBook=(number:number)=>{void queue.current?.jump(number);};
  useEffect(()=>()=>{queue.current?.stop();generation.current++;if(audio.current){audio.current.pause();audio.current.removeAttribute('src');audio.current.load();}window.speechSynthesis?.cancel();},[]);

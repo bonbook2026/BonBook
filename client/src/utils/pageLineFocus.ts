@@ -8,3 +8,11 @@ export function activeImageLine(lines:ImageReadingLine[],offset:number,time:numb
  if(useTimes){const timed=lines.filter(line=>typeof line.time==='number');for(let i=timed.length-1;i>=0;i--)if(time>=timed[i].time!)return timed[i];return null;}
  return lines.find(line=>offset>=line.start&&offset<line.end)||null;
 }
+export function hitImageLine(lines:ImageReadingLine[],x:number,y:number){
+ if(x<0||x>1||y<0||y>1)return null;
+ return lines.filter(line=>x>=line.x-.012&&x<=line.x+line.width+.012&&y>=line.y-.006&&y<=line.y+line.height+.006).sort((a,b)=>Math.abs(y-a.y-a.height/2)-Math.abs(y-b.y-b.height/2))[0]||null;
+}
+export function imageLineTime(line:ImageReadingLine,cues:{time:number;offset:number}[]=[]){
+ const time=line.time??cues.find(cue=>cue.offset>=line.start&&cue.offset<line.end)?.time;
+ return typeof time==='number'&&Number.isFinite(time)&&time>=0?time:null;
+}
