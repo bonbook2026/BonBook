@@ -1,6 +1,7 @@
-type IconName = 'book' | 'home' | 'orders' | 'user' | 'arrow' | 'plus' | 'mail' | 'search' | 'play' | 'pause' | 'headphones' | 'shield' | 'shop' | 'chevron' | 'stop' | 'bookmark' | 'expand' | 'sun' | 'moon' | 'close' | 'replay' | 'next';
+type IconName = 'eye' | 'book' | 'home' | 'orders' | 'user' | 'arrow' | 'plus' | 'mail' | 'search' | 'play' | 'pause' | 'headphones' | 'shield' | 'shop' | 'chevron' | 'stop' | 'bookmark' | 'expand' | 'sun' | 'moon' | 'close' | 'replay' | 'next';
 
 const paths: Record<IconName, string> = {
+  eye:'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM15 12a3 3 0 11-6 0 3 3 0 016 0z',
   bookmark:'M6 3h12v18l-6-4-6 4V3z',
   expand:'M3 9V3h6M15 3h6v6M21 15v6h-6M9 21H3v-6',
   sun:'M16 12a4 4 0 11-8 0 4 4 0 018 0zM12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5',

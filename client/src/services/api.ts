@@ -134,6 +134,7 @@ export const api = {
       ),
   },
   library: {
+    lineMap:(id:number,page:number,signal?:AbortSignal)=>request<{map:import('../types').PageLineMap;pageUpdatedAt:string}>(`/library/${id}/pages/${page}/line-map`,{signal}),
     list: () => request<{books: LibraryBook[]; categories: string[]}>('/library'),
     book: (id: number) => request<{book: LibraryBook}>(`/library/${id}`),
     page: (id: number, page: number) => request<{page: LibraryPage}>(`/library/${id}/pages/${page}`),

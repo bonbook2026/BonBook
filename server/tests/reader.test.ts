@@ -49,6 +49,14 @@ describe('Reader, verified identities and administration',()=>{
     expect(response.status).toBe(200);
     expect((await call('/api/admin/books','GET',undefined,generateToken(reader.id,reader.telegramId))).status).toBe(403);
   });
+  it('keeps image read-along maps private and never exposes draft page layout',async()=>{
+    const fixture=await prisma.libraryBook.create({data:{title:'Line-map access fixture',status:'PUBLISHED',pages:{create:{number:1,heading:'Test',content:'Saved text only',visualMode:'TEXT'}}}});
+    const route=`/api/library/${fixture.id}/pages/1/line-map`;
+    expect((await fetch(base+route)).status).toBe(401);
+    const response=await call(route);expect(response.status).toBe(200);expect(response.headers.get('Cache-Control')).toContain('no-store');
+    const result=await response.json();expect(result.map).toMatchObject({status:'unavailable',lines:[]});expect(result.pageUpdatedAt).toEqual(expect.any(String));expect(JSON.stringify(result)).not.toContain('Saved text only');
+    await prisma.libraryBook.update({where:{id:fixture.id},data:{status:'DRAFT'}});expect((await call(route)).status).toBe(404);
+  });
   it('requires a claimed invitation and revokes helper administration immediately',async()=>{
     const ownerToken=generateToken(owner.id,owner.telegramId),helperToken=generateToken(helper.id,helper.telegramId);
     const invitation=await (await call('/api/admin/access','POST',{identifier:'@fixture_helper'},ownerToken)).json();

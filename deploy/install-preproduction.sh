@@ -62,7 +62,7 @@ runuser -u bonbook -- env NPM_CONFIG_CACHE="$root/shared/npm-cache" NODE_ENV=dev
     node server/node_modules/prisma/build/index.js generate --schema server/prisma/schema.prisma
     npm run test:demo --prefix client
     npm test --prefix server
-    python3 -m unittest discover -s server/speech -p test_alignment.py
+    python3 -m unittest discover -s server/speech -p "test_*.py"
     NODE_ENV=production npm run build:preproduction
 ' _ "$release"
 # Schema tooling needs exclusive database access, including when WAL readers are

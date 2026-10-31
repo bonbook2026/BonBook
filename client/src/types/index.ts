@@ -80,3 +80,5 @@ export interface SearchResult extends LibraryPage {
 export interface AdminGrant {
   id: number; kind: string; identifier: string; claimedUserId: number | null; createdAt: string;
 }
+
+export interface PageLineMap{status:'ready'|'processing'|'unavailable';lines:import('../utils/pageLineFocus').ImageReadingLine[];coverage:number;source?:'pdf'|'ocr';message?:string}

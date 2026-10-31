@@ -86,6 +86,15 @@ before they count. Custom covers and contents are optional; explicitly image-onl
 pages do not require subtitles or a recording. Removing saved work reopens its task.
 Guide navigation and device preferences never mark a task complete.
 
+The reader can highlight matched physical lines on its original, watermarked page
+image. PDF geometry is checked against saved text, with private Persian OCR as a
+fallback. Matching current, applied speech word timestamps drive physical-line
+timing; other recordings follow their saved text cues. Unmatched regions are not
+guessed. An eye control zooms and follows the original book image in ordinary and
+fullscreen reading, without changing transcript font size. It is remembered on
+the device. Position maps are prepared in a bounded background queue and cached
+privately; replacing source images, text or timings invalidates the map.
+
 Fullscreen reading includes a sky journey driven by the real page order and the
 current recording's playback percentage. The opening and closing two pages hold
 their sky state. The site's selected day/night theme determines the starting
