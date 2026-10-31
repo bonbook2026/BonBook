@@ -43,3 +43,30 @@ test('keyboard activation of the facing sheet does not accidentally navigate, wh
  const f=fixture(),tree=f.render();f.find(tree,'rx-facing-page').props.onClick(f.event(0,0,0));assert.equal(f.calls[0].page,13);assert.equal(f.calls[0].word,null);
  f.find(tree,'rx-current-page').props.onClick(f.event(0,0,0));assert.equal(f.calls[1],'zoom');
 });
+test('left-word reading preserves the spread before navigation and while the new recording is still loading',()=>{
+ const f=fixture(),pages=[12,13,14].map(f.page),book={id:5,title:'کتاب',language:'fa-IR',pageCount:3,pages:pages.map(p=>({number:p.number,hasAudio:true}))};
+ const slots=[book,pages[0],pages[1]],routes=[];let cursor=0,number=12;
+ const audio={mode:'page',status:'idle',target:null,playlist:null,rate:1,position:0,elapsedSeconds:0,offset:-1,stop(){},playBook(){this.mode='book';this.status='loading';this.target=null;this.playlist={bookId:5,index:1,total:3,completed:false};return Promise.resolve();}};
+ const react={useRef:initial=>{const i=cursor++;return slots[i]||(slots[i]={current:initial});},useState:initial=>{const i=cursor++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return [slots[i],value=>slots[i]=typeof value==='function'?value(slots[i]):value];},useEffect(){}};
+ const jsx=(type,props)=>({type,props}),context={exports:{},localStorage:{getItem:()=>null},window:{matchMedia:()=>({matches:true})},require:name=>{
+  if(name==='react')return react;if(name==='react/jsx-runtime')return {jsx,jsxs:jsx};
+  if(name==='react-router-dom')return {useParams:()=>({bookId:'5',page:String(number)}),useLocation:()=>({key:'test'}),useNavigate:()=>url=>routes.push(url)};
+  if(name==='../components/ReaderProtection')return {useReaderProtection(){}};
+  if(name==='../hooks/useSiteFeatures')return {useSiteFeatures:()=>({canAccess:()=>false})};
+  if(name==='../hooks/useAuth')return {useAuth:()=>({user:null})};
+  if(name==='../hooks/useTheme')return {useTheme:()=>({theme:'night'})};
+  if(name==='../hooks/useNarration')return {useNarration:()=>audio};
+  if(name==='../hooks/usePageLineMap')return {usePageLineMap:()=>({status:'ready',words:[f.word],lines:[]})};
+  if(name==='../components/ReaderBook')return {ReaderBook:'ReaderBook',readerPageImage:()=>true};
+  if(name==='../utils/bookAudioQueue')return {recordedPages:rows=>rows.filter(p=>p.hasAudio).map(p=>p.number)};
+  if(name==='../utils/pageLineFocus')return utils.exports;return {};
+ }};
+ vm.runInNewContext(compile('pages/ReaderExperience.tsx'),context);
+ const find=tree=>{if(!tree||typeof tree!=='object')return null;if(tree.type==='ReaderBook')return tree.props;for(const child of [tree.props?.children].flat()){const found=find(child);if(found)return found;}return null;};
+ const render=()=>{cursor=0;return find(context.exports.Reader());};
+ const first=render();first.onReadWord(f.word,pages[1]);
+ const pendingRoute=render();assert.equal(pendingRoute.page.number,12);assert.equal(pendingRoute.facing.number,13);assert.equal(pendingRoute.activeOnLeft,false);assert.equal(routes.at(-1),'/read/5/13');
+ number=13;const loadingAudio=render();assert.equal(loadingAudio.page.number,13);assert.equal(loadingAudio.facing.number,12);assert.equal(loadingAudio.activeOnLeft,true);
+ audio.target={bookId:5,number:13,page:pages[1]};const playingLeft=render();assert.equal(playingLeft.page.number,13);assert.equal(playingLeft.facing.number,12);
+ playingLeft.onReadWord(f.word,pages[0]);number=12;const back=render();assert.equal(back.page.number,12);assert.equal(back.facing.number,13);assert.equal(back.activeOnLeft,false);
+});

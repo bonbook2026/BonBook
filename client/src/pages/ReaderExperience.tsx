@@ -60,7 +60,8 @@ export function Reader(){
   },[book,bookId,number,navigate,user?.id]);
   useEffect(()=>{if(audio.mode==='book'&&!audio.playlist?.completed&&audio.target?.bookId===bookId&&audio.target.number!==number){setToc(false);navigate(`/read/${bookId}/${audio.target.number}`,{replace:true});}},[audio.mode,audio.playlist?.completed,audio.target?.bookId,audio.target?.number,bookId,number,navigate]);
   useEffect(()=>{setZoom(false);},[bookId]);
-  const page=audio.mode==='book'&&audio.target?.bookId===bookId&&audio.target.number===number&&audio.target.page?audio.target.page:loadedPage?.bookId===bookId&&loadedPage.number===number?loadedPage:null;
+  const heldPage=heldSpread?.right.bookId===bookId?(heldSpread.right.number===number?heldSpread.right:heldSpread.left.number===number?heldSpread.left:null):null;
+  const page=audio.mode==='book'&&audio.target?.bookId===bookId&&audio.target.number===number&&audio.target.page?audio.target.page:loadedPage?.bookId===bookId&&loadedPage.number===number?loadedPage:heldPage;
   useEffect(()=>{if(!autoSave||!page||page.bookId!==bookId||page.number!==number)return;saveDeviceReading({bookId,pageNumber:number,title:book?.title||'',heading:page.heading,updatedAt:Date.now()});setBookmark(number);if(user)void api.library.saveProgress(bookId,number).catch(()=>{});},[autoSave,page?.bookId,page?.number,bookId,number,book?.title,user?.id]);
   const visualPage=page||(loadedPage?.bookId===bookId?loadedPage:null),index=book?.pages?.findIndex(p=>p.number===number)??-1,physicalNext=book?.pages?.[index+1]?.number;
   const held=heldSpread?.right.bookId===bookId&&(heldSpread.right.number===number||heldSpread.left.number===number)?heldSpread:null;
@@ -94,7 +95,6 @@ export function Reader(){
     if(seconds===null){const map=target.number===number?lineMap:facingMap;setError(!map||map.status==='processing'?'جای کلمه‌های این صفحه در حال آماده‌شدن است؛ کمی بعد دوباره کلمه را لمس کن.':'زمان دقیق این کلمه هنوز مطمئن نیست؛ می‌توانی از پخش‌کننده استفاده کنی.');return;}
     // Selecting the opposite sheet changes the audio target, not the open spread.
     if(target.number!==number&&page&&shownFacing&&!(zoom?zoomSingle:view==='single'||!wide)&&!held)setHeldSpread({right:page,left:shownFacing});
-    setPage(target);
     setError('');setToc(false);const same=active&&target.bookId===bookId&&target.number===number;
     if(continuous&&voices.includes(target.number)&&(!same||!fullBook))void audio.playBook(book,target.number,target,0,seconds);
     else if(same&&audio.durationSeconds>0)audio.seek(seconds/audio.durationSeconds*100,true);
