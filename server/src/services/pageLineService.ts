@@ -16,7 +16,10 @@ interface Row{x:number;y:number;width:number;height:number;text:string;words?:{x
 interface MatchResult{lines:PageLine[];coverage:number;words:PageWord[];wordCount:number;timedWordCount:number}
 interface Source{id:string;filename:string;mimeType:string}
 export interface LinePage{content:string;visualMode:string;audioAssetId:string|null;audioCues:string;audioCueMode:string;sourcePageNumber:number|null;image:Source|null;source:Source|null;audio?:Source|null;language?:string;alignments:{contentHash:string;audioAssetId:string;cues:string;words:string}[]}
-const pending=new Map<string,Promise<void>>(),failures=new Map<string,number>();let tail:Promise<unknown>=Promise.resolve(),refineTail:Promise<unknown>=Promise.resolve();const refining=new Map<string,Promise<void>>();
+const wordDirectory=()=>path.resolve(config.mediaDirectory,'../page-line-maps');
+const jobDirectory=()=>path.join(wordDirectory(),'jobs');
+async function saveJson(file:string,value:unknown){const staged=file+'.'+crypto.randomUUID()+'.tmp';try{await fs.writeFile(staged,JSON.stringify(value),{mode:0o600});await fs.rename(staged,file);}finally{await fs.unlink(staged).catch(()=>{});}}
+export function sameAudioWords(page:LinePage){for(const alignment of page.alignments){if(!page.audioAssetId||alignment.audioAssetId!==page.audioAssetId)continue;try{const words=JSON.parse(alignment.words);if(Array.isArray(words)&&words.length)return words;}catch{}}return undefined;}
 const python=()=>process.env.BONBOOK_PAGE_PYTHON||(process.platform==='win32'?'python':'python3');
 async function match(content:string,rows:Row[],words?:unknown,refined?:unknown):Promise<MatchResult>{
  return new Promise((resolve,reject)=>{
@@ -51,29 +54,45 @@ async function ocrRows(source:Source,number:number|null){
 export async function pageLineMap(page:LinePage):Promise<PageLineResult>{
  const source=page.image||page.source,number=page.image?null:page.sourcePageNumber;
  if(!source||!page.content.trim()||['TEXT','IMAGE'].includes(page.visualMode)||!(source.mimeType.startsWith('image/')||source.mimeType==='application/pdf'&&number))return {status:'unavailable',lines:[],coverage:0,message:'برای این صفحه تصویر و متنِ قابل تطبیق ثبت نشده است.'};
- const contentHash=crypto.createHash('sha256').update(page.content).digest('hex'),alignment=page.alignments.find(job=>job.contentHash===contentHash&&job.audioAssetId===page.audioAssetId&&job.cues===page.audioCues&&page.audioCueMode==='AUTO');
- const key=crypto.createHash('sha256').update(JSON.stringify(['words-v5-aligned',source.id,number,page.audioAssetId,page.content,page.audioCues,alignment?.words||''])).digest('hex'),directory=path.resolve(config.mediaDirectory,'../page-line-maps'),file=path.join(directory,key+'.json');
- try{const cached=JSON.parse(await fs.readFile(file,'utf8'));if((cached.status==='ready'&&(!cached.refining||refining.has(key)))||cached.status!=='ready'&&Date.now()-(await fs.stat(file)).mtimeMs<60000)return cached;}catch{}
- if((failures.get(key)||0)>Date.now())return {status:'unavailable',lines:[],coverage:0,message:'جای خط‌های این صفحه فعلاً آماده نشد؛ زیرنویس همراه صدا در دسترس است.'};
- if(!pending.has(key)&&pending.size<6){
-  const job=tail.catch(()=>{}).then(async()=>{let result:MatchResult={lines:[],coverage:0,words:[],wordCount:0,timedWordCount:0},kind:'pdf'|'ocr'='pdf';let rows:Row[]=[];let words:unknown;try{words=alignment?JSON.parse(alignment.words):undefined;}catch{}
+ const alignment=page.alignments.find(job=>job.audioAssetId===page.audioAssetId&&job.words!=='[]'),key=crypto.createHash('sha256').update(JSON.stringify(['words-v6-worker',source.id,number,page.audioAssetId,page.language?.split('-')[0]||'fa',page.content,page.audioCues,alignment?.words||'auto'])).digest('hex'),directory=wordDirectory(),file=path.join(directory,key+'.json');
+ let cached:PageLineResult|undefined;try{cached=JSON.parse(await fs.readFile(file,'utf8'));if(cached?.status==='ready'&&!cached.refining)return cached;if(cached?.status==='unavailable'&&Date.now()-(await fs.stat(file)).mtimeMs<60000)return cached;}catch{}
+ await fs.mkdir(jobDirectory(),{recursive:true,mode:0o700});
+ // Preserve already verified maps while migrating processing out of the web API.
+ if(!cached){const legacy=crypto.createHash('sha256').update(JSON.stringify(['words-v5-aligned',source.id,number,page.audioAssetId,page.content,page.audioCues,alignment?.words||''])).digest('hex');try{const old=JSON.parse(await fs.readFile(path.join(directory,legacy+'.json'),'utf8'));if(old.status==='ready'&&old.timedWordCount>0&&!old.refining){await saveJson(file,old);return old;}}catch{}}
+ const queued=path.join(jobDirectory(),key+'.job.json'),working=path.join(jobDirectory(),key+'.working.json');
+ try{await fs.access(working);}catch{if((await fs.readdir(jobDirectory())).length<64)try{await fs.writeFile(queued,JSON.stringify({page,key}),{mode:0o600,flag:'wx'});}catch(error){if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;}}
+ return cached?.status==='ready'?cached:{status:'processing',lines:[],coverage:0};
+}
+
+let recoveredJobs=false;
+export async function processNextPageWordJob():Promise<boolean>{
+ await fs.mkdir(jobDirectory(),{recursive:true,mode:0o700});
+ if(!recoveredJobs){for(const name of await fs.readdir(jobDirectory()))if(/^[a-f0-9]{64}\.working\.json$/.test(name))await fs.rename(path.join(jobDirectory(),name),path.join(jobDirectory(),name.replace('.working.','.job.'))).catch(()=>{});recoveredJobs=true;}
+ const entries=await Promise.all((await fs.readdir(jobDirectory())).filter(name=>/^[a-f0-9]{64}\.job\.json$/.test(name)).map(async name=>({name,time:(await fs.stat(path.join(jobDirectory(),name)).catch(()=>({mtimeMs:Infinity}))).mtimeMs})));
+ const entry=entries.sort((a,b)=>a.time-b.time)[0];if(!entry)return false;
+ const input=path.join(jobDirectory(),entry.name),working=input.replace('.job.','.working.');try{await fs.rename(input,working);}catch{return false;}
+ const key=entry.name.slice(0,64),file=path.join(wordDirectory(),key+'.json');
+ try{const job=JSON.parse(await fs.readFile(working,'utf8'));if(job.key!==key)throw new Error('Invalid word job');let finished=false;try{const cached=JSON.parse(await fs.readFile(file,'utf8'));finished=cached.status==='ready'&&!cached.refining;}catch{}if(!finished)await buildPageWordMap(job.page,file);}catch{await saveJson(file,{status:'unavailable',lines:[],coverage:0,message:'جای کلمه‌های این صفحه فعلاً آماده نشد؛ زیرنویس همراه صدا در دسترس است.'});}finally{await fs.unlink(working).catch(()=>{});}
+ return true;
+}
+
+async function buildPageWordMap(page:LinePage,file:string){
+ const source=(page.image||page.source)!,number=page.image?null:page.sourcePageNumber;
+ let result:MatchResult={lines:[],coverage:0,words:[],wordCount:0,timedWordCount:0},kind:'pdf'|'ocr'='pdf',rows:Row[]=[];
+ const speechFile=path.join(wordDirectory(),'speech-'+crypto.createHash('sha256').update(JSON.stringify([page.audioAssetId,page.language?.split('-')[0]||'fa','small-v1'])).digest('hex')+'.json');
+ let words=sameAudioWords(page);if(!words&&page.audio)try{const saved=JSON.parse(await fs.readFile(speechFile,'utf8'));if(Array.isArray(saved)&&saved.length)words=saved;}catch{}
    if(source.mimeType==='application/pdf'&&number&&!page.image){try{rows=await pdfRows(source,number);result=await match(page.content,rows,words);}catch{}}
    if(result.coverage<.78||result.words.length<result.wordCount*.9){try{const ocr=await ocrRows(source,number),recognized=await match(page.content,ocr,words);if(recognized.timedWordCount>result.timedWordCount||recognized.timedWordCount===result.timedWordCount&&(recognized.words.length>result.words.length||recognized.coverage>result.coverage)){result=recognized;rows=ocr;kind='ocr';}}catch{}}
    const valid=result.coverage>=.5&&result.lines.length>0,value:PageLineResult={...result,lines:valid?result.lines:[],words:valid?result.words:[],status:valid?'ready':'unavailable',source:kind,...(!valid?{message:'تطبیق خط‌های تصویر با متن این صفحه مطمئن نیست؛ زیرنویس همراه صدا را دنبال کن.'}:{})};
-   await fs.mkdir(directory,{recursive:true,mode:0o700});
-   const save=async(data:PageLineResult)=>{const staged=file+'.'+crypto.randomUUID()+'.tmp';try{await fs.writeFile(staged,JSON.stringify(data),{mode:0o600});await fs.rename(staged,file);}finally{await fs.unlink(staged).catch(()=>{});}};
+   const save=(data:PageLineResult)=>saveJson(file,data);
    const engine=process.env.BONBOOK_SPEECH_PYTHON||'/srv/bonbook-preproduction/shared/speech-venv/bin/python',model=process.env.BONBOOK_SPEECH_MODEL||'/srv/bonbook-preproduction/shared/speech-models/small';
-   let canRefine=Boolean(valid&&alignment&&page.audio&&refining.size<6);if(canRefine){try{await Promise.all([fs.access(engine),fs.access(path.join(model,'model.bin'))]);}catch{canRefine=false;}}
+   let canRefine=Boolean(valid&&page.audio);if(canRefine){try{await Promise.all([fs.access(engine),fs.access(path.join(model,'model.bin'))]);}catch{canRefine=false;}}
    if(canRefine){
-    let release:()=>void=()=>{};const saved=new Promise<void>(resolve=>{release=resolve;});const work=refineTail.catch(()=>{}).then(()=>saved).then(async()=>{try{const forced=await forceWords(engine,model,page);const improved=await match(page.content,rows,words,forced);await save(improved.timedWordCount>result.timedWordCount?{...value,...improved,refining:false}:{...value,refining:false});}catch{await save({...value,refining:false});}}).catch(()=>{}).finally(()=>refining.delete(key));
-    // Register before exposing the intermediate map; active readers can use it immediately.
-    refining.set(key,work);refineTail=work;try{await save({...value,refining:true});}finally{release();}
+    await save({...value,refining:true});
+    try{const speech=await forceWords(engine,model,page,words);if(speech.words?.length)await saveJson(speechFile,speech.words);const improved=await match(page.content,rows,speech.words,speech.refined);await save(improved.timedWordCount>result.timedWordCount?{...value,...improved,refining:false}:{...value,refining:false});}catch{await save({...value,refining:false,message:'ساخت زمان‌بندی دقیق کلمات این صفحه انجام نشد؛ پخش معمولی همچنان در دسترس است.'});}
    }else await save(value);
-  }).catch(()=>{if(failures.size>100)failures.clear();failures.set(key,Date.now()+60000);}).finally(()=>pending.delete(key));pending.set(key,job);tail=job;
- }
- return {status:'processing',lines:[],coverage:0};
 }
 
-async function forceWords(engine:string,model:string,page:LinePage):Promise<unknown>{
- return new Promise((resolve,reject)=>{const child=spawn(engine,[path.resolve(__dirname,'../../speech/force_page_words.py')],{stdio:['pipe','pipe','pipe'],windowsHide:true,env:{...process.env,HF_HUB_OFFLINE:'1',OMP_NUM_THREADS:'1',PYTHONIOENCODING:'utf-8'}});let output='';const timer=setTimeout(()=>{child.kill();reject(new Error('Word alignment timed out'));},180000);child.stdout.on('data',chunk=>{output+=chunk;if(output.length>1500000){child.kill();reject(new Error('Word alignment too large'));}});child.stderr.on('data',()=>{});child.on('error',error=>{clearTimeout(timer);reject(error);});child.on('close',code=>{clearTimeout(timer);try{if(code!==0)throw new Error('Word alignment unavailable');resolve(JSON.parse(output).words);}catch(error){reject(error);}});child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify({text:page.content,cues:JSON.parse(page.audioCues),audio:path.join(config.mediaDirectory,page.audio!.filename),model,language:page.language?.split('-')[0]||'fa'}));});
+async function forceWords(engine:string,model:string,page:LinePage,words?:unknown):Promise<{words:any[];refined:any[]}>{
+ return new Promise((resolve,reject)=>{const child=spawn(engine,[path.resolve(__dirname,'../../speech/force_page_words.py')],{stdio:['pipe','pipe','pipe'],windowsHide:true,env:{...process.env,HF_HUB_OFFLINE:'1',OMP_NUM_THREADS:'1',PYTHONIOENCODING:'utf-8'}});let output='';const timer=setTimeout(()=>{child.kill();reject(new Error('Word alignment timed out'));},600000);child.stdout.on('data',chunk=>{output+=chunk;if(output.length>8000000){child.kill();reject(new Error('Word alignment too large'));}});child.stderr.on('data',()=>{});child.on('error',error=>{clearTimeout(timer);reject(error);});child.on('close',code=>{clearTimeout(timer);try{if(code!==0)throw new Error('Word alignment unavailable');const data=JSON.parse(output);if(!Array.isArray(data.words)||!Array.isArray(data.refined))throw new Error('Invalid word alignment');resolve(data);}catch(error){reject(error);}});child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify({text:page.content,words,audio:path.join(config.mediaDirectory,page.audio!.filename),model,language:page.language?.split('-')[0]||'fa'}));});
 }

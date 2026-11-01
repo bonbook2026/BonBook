@@ -16,7 +16,7 @@ import {ReaderImmersive} from '../components/ReaderImmersive';
 import {resumeDevicePage,saveDeviceReading} from '../utils/readingProgress';
 import {useReaderProtection,ReaderAccountStamp} from '../components/ReaderProtection';
 import {usePageLineMap} from '../hooks/usePageLineMap';
-import {activeImageLine,activeImageWord,exactWordTime,imageLineTime,ImageReadingLine,ImageReadingWord} from '../utils/pageLineFocus';
+import {activeImageLine,activeImageWord,exactWordTime,imageLineTime,imageWordOffset,ImageReadingLine,ImageReadingWord} from '../utils/pageLineFocus';
 import {journeySeekTarget} from '../utils/readingJourney';
 import {advanceReadingSpread} from '../utils/readingSpread';
 
@@ -90,16 +90,17 @@ export function Reader(){
   const openZoom=()=>{if(Date.now()-swiped.current>500&&page){setZoomSingle(view==='single'||!wide);setZoom(true);}};
   const toggleBookmark=()=>setAutoSave(value=>!value);
   const chapter=book?.contents?.reduce((best,item)=>item.pageNumber<=number&&(!best||item.pageNumber>=best.pageNumber)?item:best,null as NonNullable<LibraryBook['contents']>[number]|null);
-  const heading=page?.heading||chapter?.title||`صفحهٔ ${fa(number)}`,offset=active&&audio.status!=='idle'?audio.offset:-1;
+  const heading=page?.heading||chapter?.title||`صفحهٔ ${fa(number)}`,voiceOffset=active&&audio.status!=='idle'?audio.offset:-1;
   const lineMap=usePageLineMap(page,Boolean(page?.content));
   const facingMap=usePageLineMap(shownFacing,Boolean(shownFacing?.content));
-  const focusWord=lineMap?.status==='ready'?activeImageWord(lineMap.words||[],audio.elapsedSeconds,active&&audio.status!=='idle'&&!audio.approximate):null;
-  const focusLine=lineMap?.status==='ready'?activeImageLine(lineMap.lines,offset,audio.elapsedSeconds,!audio.approximate&&lineMap.lines.some(line=>line.time!==undefined)):null;
+  const focusWord=lineMap?.status==='ready'?activeImageWord(lineMap.words||[],audio.elapsedSeconds,active&&audio.status!=='idle'):null;
+  const offset=(lineMap?.status==='ready'?imageWordOffset(lineMap.words||[],audio.elapsedSeconds,active&&audio.status!=='idle'):null)??voiceOffset;
+  const focusLine=lineMap?.status==='ready'?(focusWord?.lineStart!==undefined?lineMap.lines.find(line=>line.start===focusWord.lineStart)||null:activeImageLine(lineMap.lines,offset,audio.elapsedSeconds,!audio.approximate&&lineMap.lines.some(line=>line.time!==undefined))):null;
   const readFromWord=(word:ImageReadingWord|null,target:LibraryPage)=>{
     if(!book||Date.now()-swiped.current<500)return;
     if(!target.audioUrl){setError('برای این صفحه هنوز ویس ثبت نشده است.');return;}
     const seconds=exactWordTime(word);
-    if(seconds===null){const map=target.number===number?lineMap:facingMap;setError(!map||map.status==='processing'?'جای کلمه‌های این صفحه در حال آماده‌شدن است؛ کمی بعد دوباره کلمه را لمس کن.':'زمان دقیق این کلمه هنوز مطمئن نیست؛ می‌توانی از پخش‌کننده استفاده کنی.');return;}
+    if(seconds===null){const map=target.number===number?lineMap:facingMap;setError(!map||map.status==='processing'||map.refining?'زمان‌بندی کلمه‌های این صفحه در پس‌زمینه آماده می‌شود؛ واژه‌های آماده قابل لمس‌اند.':map.message||'زمان دقیق این کلمه هنوز مطمئن نیست؛ می‌توانی از پخش‌کننده استفاده کنی.');return;}
     // Selecting the opposite sheet changes the audio target, not the open spread.
     if(target.number!==number&&page&&shownFacing&&!(zoom?zoomSingle:view==='single'||!wide)&&!held)setHeldSpread({right:page,left:shownFacing});
     setError('');setToc(false);const same=active&&target.bookId===bookId&&target.number===number;

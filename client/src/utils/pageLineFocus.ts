@@ -6,6 +6,11 @@ export function activeImageWord(words:ImageReadingWord[],time:number,enabled:boo
  for(const word of words)if(exactWordTime(word)!==null&&now>=word.time!&&now<word.endTime!&&(!selected||word.time!>selected.time!))selected=word;
  return selected;
 }
+export function imageWordOffset(words:ImageReadingWord[],time:number,enabled:boolean){
+ if(!enabled)return null;let selected:ImageReadingWord|null=null;
+ for(const word of words)if(exactWordTime(word)!==null&&time+1e-6>=word.time!&&(!selected||word.time!>selected.time!))selected=word;
+ return selected?.start??null;
+}
 export function hitImageWord(words:ImageReadingWord[],x:number,y:number){
  if(x<0||x>1||y<0||y>1)return null;
  return words.find(word=>word.rects.some(rect=>x>=rect.x&&x<=rect.x+rect.width&&y>=rect.y-.002&&y<=rect.y+rect.height+.002))||null;

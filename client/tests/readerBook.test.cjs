@@ -39,6 +39,12 @@ test('a word touch keeps its original sheet and word even if the follow camera m
  left.props.onClick({...f.event(),currentTarget:{querySelector:()=>({width:1000,height:1000,getBoundingClientRect:()=>({left:0,top:300,width:1000,height:1000})})}});
  assert.equal(f.calls.length,1);assert.equal(f.calls[0].word,f.word);assert.equal(f.calls[0].page,13);
 });
+test('a WebView touch with zero click detail still reads the captured word instead of opening zoom',()=>{
+ const f=fixture(),tree=f.render(),right=f.find(tree,'rx-current-page');right.props.onPointerDown(f.event());right.props.onClick(f.event(450,215,0));assert.equal(f.calls[0].word,f.word);assert.equal(f.calls[0].page,12);assert.equal(f.calls.includes('zoom'),false);
+});
+test('a transformed printed-word hit uses the browser target instead of a flat canvas rectangle',()=>{
+ const f=fixture(),right=f.find(f.render(),'rx-current-page'),event=f.event(100,800);event.target={closest:()=>({getAttribute:key=>key==='data-reader-word-start'?'0':'3'})};right.props.onPointerDown(event);right.props.onClick(event);assert.equal(f.calls[0].word,f.word);assert.equal(f.calls[0].page,12);
+});
 test('swipes and canceled touches do not become word reads or page clicks',()=>{
  const f=fixture(),left=f.find(f.render(),'rx-facing-page');left.props.onPointerDown(f.event());left.props.onClick(f.event(550,215));
  left.props.onPointerDown(f.event());left.props.onPointerCancel();left.props.onClick(f.event());assert.equal(f.calls.length,0);
