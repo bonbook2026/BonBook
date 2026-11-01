@@ -20,7 +20,7 @@ export function readingLines(text:string){
 export async function queueAlignment(tx:any,page:any,userId:number){
  if(!page.audioAssetId||!page.content.trim())throw new HttpError(400,'ابتدا متن و ویس این صفحه را ذخیره کنید.');
  const hash=contentHash(page.content),existing=await tx.audioAlignment.findFirst({where:{pageId:page.id,audioAssetId:page.audioAssetId,contentHash:hash,status:{in:['QUEUED','PROCESSING','READY','REVIEW','APPLIED']}},orderBy:{createdAt:'desc'}});
- if(existing)return existing;
+ if(existing&&(['QUEUED','PROCESSING'].includes(existing.status)||page.audioCues===(existing.status==='APPLIED'?existing.cues:existing.previousCues)))return existing;
  return tx.audioAlignment.create({data:{id:crypto.randomUUID(),pageId:page.id,audioAssetId:page.audioAssetId,contentHash:hash,previousCues:page.audioCues,createdById:userId}});
 }
 export const alignmentJson=(job:any)=>({id:job.id,pageNumber:job.page?.number,bookId:job.page?.bookId,status:job.status,progress:job.progress,coverage:job.coverage,lineCoverage:job.lineCoverage,duration:job.duration,warning:job.warning,error:job.error,cues:JSON.parse(job.cues),candidates:JSON.parse(job.candidates),createdAt:job.createdAt});
