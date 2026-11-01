@@ -19,15 +19,28 @@ export function readingLines(text:string){
 }
 export async function queueAlignment(tx:any,page:any,userId:number){
  if(!page.audioAssetId||!page.content.trim())throw new HttpError(400,'ابتدا متن و ویس این صفحه را ذخیره کنید.');
- const hash=contentHash(page.content),existing=await tx.audioAlignment.findFirst({where:{pageId:page.id,audioAssetId:page.audioAssetId,contentHash:hash,status:{in:['QUEUED','PROCESSING']}},orderBy:{createdAt:'desc'}});
+ const hash=contentHash(page.content),existing=await tx.audioAlignment.findFirst({where:{pageId:page.id,audioAssetId:page.audioAssetId,contentHash:hash,status:{in:['QUEUED','PROCESSING','READY','REVIEW','APPLIED']}},orderBy:{createdAt:'desc'}});
  if(existing)return existing;
  return tx.audioAlignment.create({data:{id:crypto.randomUUID(),pageId:page.id,audioAssetId:page.audioAssetId,contentHash:hash,previousCues:page.audioCues,createdById:userId}});
 }
 export const alignmentJson=(job:any)=>({id:job.id,pageNumber:job.page?.number,bookId:job.page?.bookId,status:job.status,progress:job.progress,coverage:job.coverage,lineCoverage:job.lineCoverage,duration:job.duration,warning:job.warning,error:job.error,cues:JSON.parse(job.cues),candidates:JSON.parse(job.candidates),createdAt:job.createdAt});
+export function validSpeechWords(value:unknown):value is {text:string;start:number;end:number;probability?:number}[]{
+ if(!Array.isArray(value)||!value.length||value.length>40000)return false;
+ let previous=-1;return value.every(word=>{if(!word||typeof word.text!=='string'||!word.text.trim()||!Number.isFinite(word.start)||!Number.isFinite(word.end)||word.start<previous||word.start<0||word.end<word.start||word.end>7200)return false;previous=word.start;return word.probability===undefined||Number.isFinite(word.probability)&&word.probability>=0&&word.probability<=1;});
+}
+export async function reusableSpeech(job:any){
+ // Recognition belongs to the recording, not a particular OCR revision. Only
+ // rematch its real timestamps when the page text changes.
+ const saved=await prisma.audioAlignment.findMany({where:{audioAssetId:job.audioAssetId,words:{not:'[]'},duration:{gt:0},page:{book:{language:job.page.book.language}}},select:{words:true,duration:true},orderBy:{updatedAt:'desc'},take:5});
+ for(const row of saved)try{const words=JSON.parse(row.words);if(validSpeechWords(words)&&row.duration<=7200&&row.duration>=words[words.length-1].end)return {words,duration:row.duration};}catch{}
+ return null;
+}
 export async function recognizeSpeech(job:any,onProgress:(progress:number)=>Promise<void>,canceled:()=>Promise<boolean>){
  const files=speechPaths(),temporary=await fs.mkdtemp(path.join(os.tmpdir(),'bonbook-speech-')),input=path.join(temporary,'request.json'),output=path.join(temporary,'result.json');
  try{
-  await fs.writeFile(input,JSON.stringify({audio:path.join(config.mediaDirectory,job.audio.filename),model:files.model,output,text:job.page.content,lines:readingLines(job.page.content),language:job.page.book.language.startsWith('en')?'en':job.page.book.language.startsWith('ar')?'ar':'fa'}),{mode:0o600});
+  const recognized=await reusableSpeech(job);
+  await fs.writeFile(input,JSON.stringify({audio:path.join(config.mediaDirectory,job.audio.filename),model:files.model,output,text:job.page.content,lines:readingLines(job.page.content),language:job.page.book.language.startsWith('en')?'en':job.page.book.language.startsWith('ar')?'ar':'fa',...(recognized?{recognized}: {})}),{mode:0o600});
+  if(recognized)console.log('BonBook speech alignment reusing recording:',job.id);
   await new Promise<void>((resolve,reject)=>{
    const child=spawn(files.python,[files.script,input],{env:{...process.env,HF_HUB_OFFLINE:'1',OMP_NUM_THREADS:'2'},stdio:['ignore','pipe','pipe']});let buffer='',error='',last=0,settled=false;
    const finish=(failure?:Error)=>{if(settled)return;settled=true;clearInterval(check);clearTimeout(timeout);if(failure)reject(failure);else resolve();};

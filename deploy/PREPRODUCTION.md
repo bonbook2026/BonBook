@@ -199,6 +199,21 @@ Existing nonempty timing cues are preserved until an admin explicitly applies th
 new suggestion. The book-wide recognition list supports including timed pages and
 applying all confident suggestions together; stale snapshots are skipped.
 
+The worker rotates between books while retaining FIFO inside each book, so a
+large first upload cannot starve a second book. Recognition already saved for
+the same recording and language is rematched against edited text without
+loading Whisper again. Repeating a request for an unchanged completed page is
+idempotent; failed or canceled pages can be queued again. Matching thresholds
+and protection of existing manual timings remain unchanged.
+
+The private `shared/data/speech-worker.json` heartbeat is updated every ten
+seconds and preserves the last book across restarts. The authenticated admin
+API exposes only worker availability, the active book/page and fair queue
+positions. The panel counts REVIEW as completed recognition awaiting approval,
+shows waiting/processing separately, and reports failed refreshes rather than
+silently presenting stale zero progress. A heartbeat older than 45 seconds is
+reported as unavailable. No additional CPU or memory quota is allocated.
+
 Reader image-word maps use the independent `bonbook-page-word-worker.service`
 (2 GiB, 75% CPU quota, low priority, no Internet address families). Web requests
 only enqueue private snapshots under `shared/data/page-line-maps/jobs`; OCR and

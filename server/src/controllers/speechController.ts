@@ -4,6 +4,7 @@ import {AuthRequest} from '../middleware/auth';
 import {HttpError} from '../lib/httpError';
 import {positiveId} from './libraryController';
 import {alignmentJson,queueAlignment,applyAlignment,speechAvailable} from '../services/speechService';
+import {readSpeechWorkerState,speechQueueSnapshot} from '../services/speechQueue';
 export async function pageAlignment(req:AuthRequest,res:Response,next:NextFunction){try{
  const bookId=positiveId(req.params.id),number=positiveId(req.params.page),page=await prisma.libraryPage.findFirst({where:{bookId,number,book:{status:{not:'TRASH'}}}});if(!page)throw new HttpError(404,'صفحه در دسترس نیست.');
  if(req.method==='GET'){const job=await prisma.audioAlignment.findFirst({where:{pageId:page.id,audioAssetId:page.audioAssetId||''},orderBy:{createdAt:'desc'}});res.json({available:await speechAvailable(),alignment:job?alignmentJson(job):null});return;}
@@ -19,15 +20,19 @@ export async function changeAlignment(req:AuthRequest,res:Response,next:NextFunc
 export async function alignBook(req:AuthRequest,res:Response,next:NextFunction){try{
  const bookId=positiveId(req.params.id);if(!await speechAvailable())throw new HttpError(503,'موتور تشخیص گفتار آماده نیست.');
  if(!await prisma.libraryBook.findFirst({where:{id:bookId,status:{not:'TRASH'}}}))throw new HttpError(404,'کتاب در دسترس نیست.');
- const pages=await prisma.libraryPage.findMany({where:{bookId,audioAssetId:{not:null}},orderBy:{number:'asc'}});let queued=0,skipped=0;
- for(const page of pages){if(!page.content.trim()||(page.audioCues!=='[]'&&req.body.replaceExisting!==true)){skipped++;continue;}await prisma.$transaction(tx=>queueAlignment(tx,page,req.userId!));queued++;}
- res.status(202).json({queued,skipped});
+ const pages=await prisma.libraryPage.findMany({where:{bookId,audioAssetId:{not:null}},orderBy:{number:'asc'}});let queued=0,skipped=0,reused=0;
+ for(const page of pages){if(!page.content.trim()||(page.audioCues!=='[]'&&req.body.replaceExisting!==true)){skipped++;continue;}const job=await prisma.$transaction(tx=>queueAlignment(tx,page,req.userId!));if(['QUEUED','PROCESSING'].includes(job.status))queued++;else reused++;}
+ res.status(202).json({queued,skipped,reused});
 }catch(e){next(e);}}
 export async function bookAlignments(req:AuthRequest,res:Response,next:NextFunction){try{
  const bookId=positiveId(req.params.id);if(!await prisma.libraryBook.findFirst({where:{id:bookId,status:{not:'TRASH'}}}))throw new HttpError(404,'کتاب در دسترس نیست.');
  const jobs=await prisma.audioAlignment.findMany({where:{page:{bookId}},orderBy:{createdAt:'desc'},select:{id:true,status:true,progress:true,coverage:true,lineCoverage:true,warning:true,error:true,candidates:true,pageId:true,page:{select:{number:true}}},take:4000});
  const seen=new Set<number>(),latest=jobs.filter(job=>{if(seen.has(job.pageId))return false;seen.add(job.pageId);return true;});
- if(req.method==='GET'){res.json({jobs:latest.map(job=>({...job,page:undefined,pageNumber:job.page.number,candidates:JSON.parse(job.candidates)}))});return;}
+ if(req.method==='GET'){
+  const pending=await prisma.audioAlignment.findMany({where:{status:{in:['QUEUED','PROCESSING']}},orderBy:[{createdAt:'asc'},{id:'asc'}],select:{id:true,status:true,progress:true,page:{select:{bookId:true,number:true}}}});
+  const {positions,...queue}=speechQueueSnapshot(pending.map(job=>({id:job.id,status:job.status,progress:job.progress,bookId:job.page.bookId,pageNumber:job.page.number})),await readSpeechWorkerState(),bookId);
+  res.json({jobs:latest.map(job=>({...job,page:undefined,pageNumber:job.page.number,queuePosition:positions.get(job.id)||null,candidates:JSON.parse(job.candidates)})),queue});return;
+ }
  let applied=0,skipped=0;for(const job of latest){if(job.status!=='READY'||job.coverage<.78||job.lineCoverage!==1)continue;try{await applyAlignment(job.id);applied++;}catch{skipped++;}}
  res.json({applied,skipped});
 }catch(e){next(e);}}

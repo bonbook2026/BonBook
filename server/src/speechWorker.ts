@@ -1,22 +1,30 @@
-import {config} from './config';
 import prisma from './lib/prisma';
-import {alignmentJson,applyAlignment,contentHash,recognizeSpeech} from './services/speechService';
+import {applyAlignment,contentHash,recognizeSpeech} from './services/speechService';
 import {normalizePersian} from './services/searchService';
+import {fairSpeechOrder,readSpeechWorkerState,writeSpeechWorkerState,SpeechWorkerState} from './services/speechQueue';
 let stopping=false,activeJob:string|null=null;
-async function shutdown(){if(stopping)return;stopping=true;if(activeJob)await prisma.audioAlignment.updateMany({where:{id:activeJob,status:'PROCESSING'},data:{status:'QUEUED',attempts:{decrement:1}}});await prisma.$disconnect();process.exit(0);}
+const state:SpeechWorkerState={heartbeat:0,lastBookId:null,active:null};let heartbeat:NodeJS.Timeout|undefined,writes=Promise.resolve();
+function publish(online=true){const value={...state,heartbeat:online?Date.now():0,active:state.active?{...state.active}:null};writes=writes.catch(()=>{}).then(()=>writeSpeechWorkerState(value));return writes;}
+async function shutdown(){if(stopping)return;stopping=true;clearInterval(heartbeat);if(activeJob)await prisma.audioAlignment.updateMany({where:{id:activeJob,status:'PROCESSING'},data:{status:'QUEUED',attempts:{decrement:1}}});state.active=null;await publish(false).catch(()=>{});await prisma.$disconnect();process.exit(0);}
 process.once('SIGTERM',()=>void shutdown());process.once('SIGINT',()=>void shutdown());
 async function run(){
+ state.lastBookId=(await readSpeechWorkerState())?.lastBookId??null;
  await prisma.audioAlignment.updateMany({where:{status:'PROCESSING',attempts:{gte:3}},data:{status:'FAILED',error:'پردازش چند بار متوقف شد. دوباره تلاش کنید یا فایل کوتاه‌تری انتخاب کنید.'}});
  await prisma.audioAlignment.updateMany({where:{status:'PROCESSING'},data:{status:'QUEUED'}});
+ await publish();heartbeat=setInterval(()=>{void publish().catch(()=>{});},10000);
  while(!stopping){
-  const job=await prisma.audioAlignment.findFirst({where:{status:'QUEUED'},orderBy:{createdAt:'asc'},include:{audio:true,page:{include:{book:true}}}});
+  const waiting=await prisma.audioAlignment.findMany({where:{status:'QUEUED'},orderBy:[{createdAt:'asc'},{id:'asc'}],select:{id:true,page:{select:{bookId:true}}}});
+  const next=fairSpeechOrder(waiting.map(job=>({id:job.id,bookId:job.page.bookId})),state.lastBookId)[0];
+  const job=next?await prisma.audioAlignment.findUnique({where:{id:next.id},include:{audio:true,page:{include:{book:true}}}}):null;
   if(!job){await new Promise(resolve=>setTimeout(resolve,2000));continue;}
   if(!(await prisma.audioAlignment.updateMany({where:{id:job.id,status:'QUEUED'},data:{status:'PROCESSING',error:null,progress:0,attempts:{increment:1}}})).count)continue;
   activeJob=job.id;
+  state.lastBookId=job.page.bookId;state.active={id:job.id,bookId:job.page.bookId,pageNumber:job.page.number,progress:0,startedAt:Date.now()};await publish();
+  console.log('BonBook speech alignment started:',job.id,'book',job.page.bookId,'page',job.page.number);
   const canceled=async()=>{if(stopping)return true;const latest=await prisma.audioAlignment.findUnique({where:{id:job.id},include:{page:{include:{book:true}}}});return !latest||latest.status==='CANCELED'||latest.page.book.status==='TRASH'||latest.page.audioAssetId!==job.audioAssetId||contentHash(latest.page.content)!==job.contentHash;};
   try{
    if(await canceled()){await prisma.audioAlignment.updateMany({where:{id:job.id},data:{status:'CANCELED',warning:'متن یا ویس تغییر کرده است.'}});continue;}
-   const result=await recognizeSpeech(job,async progress=>{await prisma.audioAlignment.updateMany({where:{id:job.id,status:'PROCESSING'},data:{progress}});},canceled);
+   const result=await recognizeSpeech(job,async progress=>{await prisma.audioAlignment.updateMany({where:{id:job.id,status:'PROCESSING'},data:{progress}});if(state.active?.id===job.id)state.active.progress=progress;await publish();},canceled);
    if(await canceled()){await prisma.audioAlignment.updateMany({where:{id:job.id},data:{status:'CANCELED'}});continue;}
    if(!Array.isArray(result.words)||!Array.isArray(result.cues)||!Number.isFinite(result.coverage)||!Number.isFinite(result.lineCoverage))throw new Error('نتیجهٔ تشخیص گفتار معتبر نیست.');
    const candidates:{pageNumber:number;score:number;heading:string}[]=[];
@@ -31,7 +39,7 @@ async function run(){
    if(result.safe&&job.previousCues==='[]')try{await applyAlignment(job.id);}catch{await prisma.audioAlignment.update({where:{id:job.id},data:{status:'REVIEW',warning:'زمان‌بندی دستی در طول پردازش تغییر کرده است؛ پیشنهاد جدید را بازبینی کنید.'}});}
    console.log('BonBook speech alignment finished:',job.id,result.coverage,result.lineCoverage);
   }catch(error){if(!stopping){const canceledNow=await canceled();await prisma.audioAlignment.updateMany({where:{id:job.id,status:'PROCESSING'},data:{status:canceledNow?'CANCELED':'FAILED',error:canceledNow?null:(error instanceof Error?error.message:'تشخیص گفتار انجام نشد.').slice(0,400)}});}}
-  finally{activeJob=null;}
+  finally{activeJob=null;state.active=null;await publish();}
  }
 }
-run().catch(error=>{console.error('BonBook speech worker stopped:',error instanceof Error?error.name:'error');process.exitCode=1;}).finally(()=>prisma.$disconnect());
+run().catch(error=>{console.error('BonBook speech worker stopped:',error instanceof Error?error.name:'error');process.exitCode=1;}).finally(async()=>{clearInterval(heartbeat);await publish(false).catch(()=>{});await prisma.$disconnect();});

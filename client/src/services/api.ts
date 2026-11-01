@@ -1,4 +1,4 @@
-import { AuthResponse, BookInfo, Order, User, LibraryBook, LibraryPage, SearchResult, AdminGrant,PageSummary,BookCategory,BookImport,ImportedPage,ContentsEntry,AudioBatch,AudioAlignment,BookTextImport,TextImportItem } from '../types';
+import { AuthResponse, BookInfo, Order, User, LibraryBook, LibraryPage, SearchResult, AdminGrant,PageSummary,BookCategory,BookImport,ImportedPage,ContentsEntry,AudioBatch,AudioAlignment,BookTextImport,TextImportItem,SpeechQueueState } from '../types';
 import { IS_DEMO, IS_PREPRODUCTION } from '../config/demo';
 import {SiteFeatures,SiteSection,LibraryHeroSettings} from '../types/siteSettings';
 import {BookSetupProgress} from '../types';
@@ -164,8 +164,8 @@ export const api = {
     alignment:(id:string)=>request<{alignment:AudioAlignment}>(`/admin/alignments/${id}`),
     applyAlignment:(id:string,replaceManual=false)=>request<{alignment:AudioAlignment}>(`/admin/alignments/${id}/apply`,{method:'POST',body:JSON.stringify({replaceManual})}),
     cancelAlignment:(id:string)=>request<{ok:boolean}>(`/admin/alignments/${id}`,{method:'DELETE'}),
-    alignBook:(id:number,replaceExisting=false)=>request<{queued:number;skipped:number}>(`/admin/books/${id}/align-audio`,{method:'POST',body:JSON.stringify({replaceExisting})}),
-    bookAlignments:(id:number)=>request<{jobs:(AudioAlignment&{pageNumber:number})[]}>(`/admin/books/${id}/alignments`),
+    alignBook:(id:number,replaceExisting=false)=>request<{queued:number;skipped:number;reused:number}>(`/admin/books/${id}/align-audio`,{method:'POST',body:JSON.stringify({replaceExisting})}),
+    bookAlignments:(id:number)=>request<{jobs:(AudioAlignment&{pageNumber:number})[];queue:SpeechQueueState}>(`/admin/books/${id}/alignments`),
     applyReadyAlignments:(id:number)=>request<{applied:number;skipped:number}>(`/admin/books/${id}/alignments/apply-ready`,{method:'POST'}),
     books: (filters:Record<string,string>={}) => request<{books: LibraryBook[];total:number;page:number;pageSize:number;counts:Record<string,number>}>('/admin/books?'+new URLSearchParams(filters)),
     createBook: (title: string) => request<{book: LibraryBook}>('/admin/books', {method:'POST',body:JSON.stringify({title})}),

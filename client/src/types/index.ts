@@ -62,7 +62,8 @@ export interface LibraryPage {
   imageAssetId?:string|null;imageUrl?:string|null;sourceImageUrl?:string|null;visualMode?:'AUTO'|'TEXT'|'IMAGE'|'BOTH';
 }
 export interface AudioCue{time:number;offset:number}
-export interface AudioAlignment{id:string;status:'QUEUED'|'PROCESSING'|'READY'|'REVIEW'|'APPLIED'|'FAILED'|'CANCELED';progress:number;coverage:number;lineCoverage:number;duration?:number;warning:string;error:string|null;cues?:AudioCue[];candidates:{pageNumber:number;score:number;heading:string}[]}
+export interface AudioAlignment{id:string;status:'QUEUED'|'PROCESSING'|'READY'|'REVIEW'|'APPLIED'|'FAILED'|'CANCELED';progress:number;coverage:number;lineCoverage:number;duration?:number;warning:string;error:string|null;cues?:AudioCue[];queuePosition?:number|null;candidates:{pageNumber:number;score:number;heading:string}[]}
+export interface SpeechQueueState{online:boolean;active:{id:string;bookId:number;pageNumber:number;progress:number;startedAt:number|null}|null;pending:number;nextPosition:number}
 export interface AudioBatchItem{id:string;pageNumber:number;filename:string;size:number;status:'WAITING'|'ATTACHED'|'FAILED'|'SKIPPED';assetId:string|null;error:string|null;alignment?:AudioAlignment|null}
 export interface AudioBatch{id:string;bookId:number;status:'UPLOADING'|'COMPLETE'|'CANCELED';autoAlign:boolean;replaceExisting:boolean;items:AudioBatchItem[]}
 export type PageSummary=Pick<LibraryPage,'id'|'number'|'heading'>;
