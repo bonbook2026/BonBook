@@ -199,6 +199,15 @@ Existing nonempty timing cues are preserved until an admin explicitly applies th
 new suggestion. The book-wide recognition list supports including timed pages and
 applying all confident suggestions together; stale snapshots are skipped.
 
+Reader image-word maps use the independent `bonbook-page-word-worker.service`
+(2 GiB, 75% CPU quota, low priority, no Internet address families). Web requests
+only enqueue private snapshots under `shared/data/page-line-maps/jobs`; OCR and
+speech models run in this worker, independently of the admin's bulk recognition
+queue. Interrupted claims are recovered on restart. Derived results reuse real
+recognition for the same audio after text edits, or recognize a new recording
+locally when no saved recognition exists. Neither saved text nor audio cues are
+modified. These disposable private maps can be regenerated after migration.
+
 Model/runtime files live under `shared/speech-venv` and `shared/speech-models`;
 they can be rebuilt by the installer on a new host. Audio originals, batch state,
 recognized word times and results are included in the ordinary media/SQLite

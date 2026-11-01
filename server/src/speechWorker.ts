@@ -2,19 +2,15 @@ import {config} from './config';
 import prisma from './lib/prisma';
 import {alignmentJson,applyAlignment,contentHash,recognizeSpeech} from './services/speechService';
 import {normalizePersian} from './services/searchService';
-import {processNextPageWordJob} from './services/pageLineService';
 let stopping=false,activeJob:string|null=null;
 async function shutdown(){if(stopping)return;stopping=true;if(activeJob)await prisma.audioAlignment.updateMany({where:{id:activeJob,status:'PROCESSING'},data:{status:'QUEUED',attempts:{decrement:1}}});await prisma.$disconnect();process.exit(0);}
 process.once('SIGTERM',()=>void shutdown());process.once('SIGINT',()=>void shutdown());
 async function run(){
  await prisma.audioAlignment.updateMany({where:{status:'PROCESSING',attempts:{gte:3}},data:{status:'FAILED',error:'پردازش چند بار متوقف شد. دوباره تلاش کنید یا فایل کوتاه‌تری انتخاب کنید.'}});
  await prisma.audioAlignment.updateMany({where:{status:'PROCESSING'},data:{status:'QUEUED'}});
- let readerTurn=true;
  while(!stopping){
   const job=await prisma.audioAlignment.findFirst({where:{status:'QUEUED'},orderBy:{createdAt:'asc'},include:{audio:true,page:{include:{book:true}}}});
-  if(readerTurn||!job){if(await processNextPageWordJob()){readerTurn=false;continue;}}
   if(!job){await new Promise(resolve=>setTimeout(resolve,2000));continue;}
-  readerTurn=true;
   if(!(await prisma.audioAlignment.updateMany({where:{id:job.id,status:'QUEUED'},data:{status:'PROCESSING',error:null,progress:0,attempts:{increment:1}}})).count)continue;
   activeJob=job.id;
   const canceled=async()=>{if(stopping)return true;const latest=await prisma.audioAlignment.findUnique({where:{id:job.id},include:{page:{include:{book:true}}}});return !latest||latest.status==='CANCELED'||latest.page.book.status==='TRASH'||latest.page.audioAssetId!==job.audioAssetId||contentHash(latest.page.content)!==job.contentHash;};

@@ -66,15 +66,19 @@ runuser -u bonbook -- env NPM_CONFIG_CACHE="$root/shared/npm-cache" NODE_ENV=dev
     NODE_ENV=production npm run build:preproduction
 ' _ "$release"
 # Schema tooling needs exclusive database access, including when WAL readers are
-# otherwise idle. Build and test first, then pause only our three processes.
+# otherwise idle. Build and test first, then pause only BonBook processes.
 recover_bonbook_services() {
     result=$?
     if [[ "$result" -ne 0 && -e "$root/current" ]]; then
-        systemctl restart bonbook-preproduction.service bonbook-import-worker.service bonbook-speech-worker.service || true
+        for unit in bonbook-preproduction.service bonbook-import-worker.service bonbook-speech-worker.service bonbook-page-word-worker.service; do
+            if [[ "$unit" == bonbook-page-word-worker.service && ! -f "$root/current/server/dist/pageWordWorker.js" ]]; then
+                systemctl stop "$unit" 2>/dev/null || true
+            elif systemctl cat "$unit" >/dev/null 2>&1; then systemctl restart "$unit" || true; fi
+        done
     fi
 }
 trap recover_bonbook_services EXIT
-for bonbook_unit in bonbook-preproduction.service bonbook-import-worker.service bonbook-speech-worker.service; do
+for bonbook_unit in bonbook-preproduction.service bonbook-import-worker.service bonbook-speech-worker.service bonbook-page-word-worker.service; do
     if systemctl cat "$bonbook_unit" >/dev/null 2>&1; then systemctl stop "$bonbook_unit"; fi
 done
 runuser -u bonbook -- env NPM_CONFIG_CACHE="$root/shared/npm-cache" NODE_ENV=production DATABASE_URL=file:/srv/bonbook-preproduction/shared/data/bonbook.db NODE_OPTIONS=--max-old-space-size=512 bash -c '
@@ -95,6 +99,7 @@ install -m 0640 -o root -g bonbook "$environment" "$root/shared/runtime.env"
 install -m 0644 "$release/deploy/bonbook-preproduction.service" /etc/systemd/system/bonbook-preproduction.service
 install -m 0644 "$release/deploy/bonbook-import-worker.service" /etc/systemd/system/bonbook-import-worker.service
 install -m 0644 "$release/deploy/bonbook-speech-worker.service" /etc/systemd/system/bonbook-speech-worker.service
+install -m 0644 "$release/deploy/bonbook-page-word-worker.service" /etc/systemd/system/bonbook-page-word-worker.service
 previous=$(readlink -f "$root/current" || true)
 ln -s "$release" "$root/current.next"
 mv -Tf "$root/current.next" "$root/current"
@@ -125,4 +130,6 @@ systemctl enable bonbook-import-worker.service
 systemctl restart bonbook-import-worker.service
 systemctl enable bonbook-speech-worker.service
 systemctl restart bonbook-speech-worker.service
+systemctl enable bonbook-page-word-worker.service
+systemctl restart bonbook-page-word-worker.service
 trap - EXIT
