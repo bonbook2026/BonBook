@@ -214,6 +214,30 @@ shows waiting/processing separately, and reports failed refreshes rather than
 silently presenting stale zero progress. A heartbeat older than 45 seconds is
 reported as unavailable. No additional CPU or memory quota is allocated.
 
+### Reversible smart audio review
+
+The book audio panel can enable smart review for existing REVIEW/READY snapshots
+and for subsequent recognition results from the same book. The existing speech
+worker consumes these short rematching tasks before starting another ASR file;
+it reuses stored recognition and never adds another model worker or CPU quota.
+Punctuation-only fragments and artificial short/Persian-prefix splits are merged
+for timing analysis without changing the source text or offsets.
+
+`audio_review_runs` and `audio_review_items` retain exact before/after cue strings,
+modes and immutable text/audio identities. Full valid MANUAL/AUTO cues are kept
+byte-for-byte. Partial cues are extended only with independently recognized line
+evidence (global text/spoken coverage at least 0.78/0.65, adequate local coverage,
+and monotonic placement around every unchanged existing anchor). Missing words
+are never assigned interpolated times. Weak or conflicting results remain
+unresolved; a partial repair stays explicitly PARTIAL. Apply and restore both
+recheck content, recording, mode and exact cue snapshot inside a transaction.
+Later manual edits are never overwritten. Restore also disables future review.
+
+All review routes are behind the existing authenticated admin middleware. GET
+returns counts, page numbers and diagnostic offsets, without book text, media
+URLs or private before/after snapshots. New schema migration 13 adds the book
+opt-in and these audit tables. Normal SQL/media transfer backups include them.
+
 Reader image-word maps use the independent `bonbook-page-word-worker.service`
 (2 GiB, 75% CPU quota, low priority, no Internet address families). Web requests
 only enqueue private snapshots under `shared/data/page-line-maps/jobs`; OCR and

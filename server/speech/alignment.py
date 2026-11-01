@@ -52,13 +52,15 @@ def align(text,words,lines):
     for i in sorted(list(matched)):
         if matched[i]<previous:del matched[i]
         else:previous=matched[i]
-    cues=[];previous=-1
+    cues=[];evidence=[];previous=-1
     for line in lines:
         positions=[i for i in matched if line['start']<=target[i]['offset']<line['end']]
         if not positions:continue
         first=min(positions);time=heard[matched[first]]['time']
         if time>previous:
+            in_line=[i for i,t in enumerate(target) if line['start']<=t['offset']<line['end']]
             cues.append({'offset':line['start'],'time':time});previous=time
+            evidence.append({'offset':line['start'],'matched':len(positions),'total':len(in_line),'leadingMissed':sum(i<first for i in in_line),'probability':heard[matched[first]]['probability']})
     coverage=len(matched)/max(1,len(target));spoken_coverage=len(set(matched.values()))/max(1,len(heard));line_coverage=len(cues)/max(1,len(lines))
     safe=exact_coverage>=.5 and coverage>=.78 and spoken_coverage>=.65 and line_coverage==1 and len(cues)>0
-    return {'cues':cues,'coverage':round(coverage,4),'spokenCoverage':round(spoken_coverage,4),'lineCoverage':round(line_coverage,4),'safe':safe}
+    return {'cues':cues,'evidence':evidence,'coverage':round(coverage,4),'spokenCoverage':round(spoken_coverage,4),'lineCoverage':round(line_coverage,4),'safe':safe}

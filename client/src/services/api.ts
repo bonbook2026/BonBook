@@ -2,6 +2,7 @@ import { AuthResponse, BookInfo, Order, User, LibraryBook, LibraryPage, SearchRe
 import { IS_DEMO, IS_PREPRODUCTION } from '../config/demo';
 import {SiteFeatures,SiteSection,LibraryHeroSettings} from '../types/siteSettings';
 import {BookSetupProgress} from '../types';
+import {AudioReviewState} from '../types';
 
 const BASE_URL = '/api';
 export const mediaUrl = (url: string | null) => url && url.startsWith('/api/media/') ? url : null;
@@ -167,6 +168,10 @@ export const api = {
     alignBook:(id:number,replaceExisting=false)=>request<{queued:number;skipped:number;reused:number}>(`/admin/books/${id}/align-audio`,{method:'POST',body:JSON.stringify({replaceExisting})}),
     bookAlignments:(id:number)=>request<{jobs:(AudioAlignment&{pageNumber:number})[];queue:SpeechQueueState}>(`/admin/books/${id}/alignments`),
     applyReadyAlignments:(id:number)=>request<{applied:number;skipped:number}>(`/admin/books/${id}/alignments/apply-ready`,{method:'POST'}),
+    audioReview:(id:number)=>request<AudioReviewState>(`/admin/books/${id}/audio-review`),
+    startAudioReview:(id:number)=>request<AudioReviewState>(`/admin/books/${id}/audio-review`,{method:'POST'}),
+    stopAudioReview:(id:number)=>request<AudioReviewState>(`/admin/books/${id}/audio-review`,{method:'DELETE'}),
+    undoAudioReview:(id:number,run:string)=>request<{restored:number;skipped:number}>(`/admin/books/${id}/audio-review/${run}/undo`,{method:'POST'}),
     books: (filters:Record<string,string>={}) => request<{books: LibraryBook[];total:number;page:number;pageSize:number;counts:Record<string,number>}>('/admin/books?'+new URLSearchParams(filters)),
     createBook: (title: string) => request<{book: LibraryBook}>('/admin/books', {method:'POST',body:JSON.stringify({title})}),
     book: (id: number) => request<{book: LibraryBook; pages: PageSummary[]}>(`/admin/books/${id}`),

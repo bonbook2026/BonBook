@@ -15,7 +15,15 @@ export function readingLines(text:string){
   let rest=sentence[0],offset=block.index!+sentence.index!;
   while(rest.length){let length=Math.min(160,rest.length);if(length<rest.length){const space=rest.lastIndexOf(' ',length);if(space>60)length=space+1;}const raw=rest.slice(0,length),leading=raw.length-raw.trimStart().length,value=raw.trim();if(value)result.push({start:offset+leading,end:offset+leading+value.length,text:value});offset+=length;rest=rest.slice(length);}
  }
- return result;
+ const meaningful:typeof result=[];
+ for(const row of result){
+  const previous=meaningful[meaningful.length-1],lexical=/[\p{L}\p{N}]/u.test(row.text);
+  const sameSentence=previous&&!/[.!?؟؛]\s*$/.test(previous.text)&&!text.slice(previous.end,row.start).includes('\n');
+  const splitPrefix=previous&&/(?:^|\s)(?:می|نمی)[‌\s]*$/.test(previous.text)&&/^[\p{L}]/u.test(row.text);
+  if(previous&&(!lexical||sameSentence&&row.text.length<20||splitPrefix)){previous.end=row.end;previous.text=text.slice(previous.start,row.end);}
+  else if(lexical)meaningful.push({...row});
+ }
+ return meaningful;
 }
 export async function queueAlignment(tx:any,page:any,userId:number){
  if(!page.audioAssetId||!page.content.trim())throw new HttpError(400,'ابتدا متن و ویس این صفحه را ذخیره کنید.');

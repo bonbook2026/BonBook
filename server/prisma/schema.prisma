@@ -216,6 +216,8 @@ model LibraryBook {
   contents        BookContents[]
   audioBatches    AudioBatch[]
   textImports     BookTextImport[]
+  smartAudioReview Boolean @default(false) @map("smart_audio_review")
+  audioReviews    AudioReviewRun[]
 
   @@index([status, categoryId])
   @@map("library_books")
@@ -318,6 +320,41 @@ model AudioAlignment {
   @@index([status, createdAt])
   @@index([pageId, createdAt])
   @@map("audio_alignments")
+}
+
+model AudioReviewRun {
+  id String @id
+  bookId Int @map("book_id")
+  book LibraryBook @relation(fields:[bookId],references:[id],onDelete:Cascade)
+  status String @default("QUEUED")
+  createdById Int @map("created_by_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  items AudioReviewItem[]
+  @@index([bookId,createdAt])
+  @@map("audio_review_runs")
+}
+
+model AudioReviewItem {
+  id String @id
+  runId String @map("run_id")
+  run AudioReviewRun @relation(fields:[runId],references:[id],onDelete:Cascade)
+  pageId Int @map("page_id")
+  pageNumber Int @map("page_number")
+  sourceAlignmentId String @unique @map("source_alignment_id")
+  audioAssetId String @map("audio_asset_id")
+  contentHash String @map("content_hash")
+  beforeCues String @map("before_cues")
+  beforeMode String @map("before_mode")
+  afterCues String? @map("after_cues")
+  afterMode String? @map("after_mode")
+  alignmentId String? @map("alignment_id")
+  status String @default("WAITING")
+  report String @default("{}")
+  message String @default("")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([runId,status])
+  @@map("audio_review_items")
 }
 
 model BookCategory {
