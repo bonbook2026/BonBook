@@ -12,7 +12,7 @@ export function readerPageImage(page:LibraryPage){
 
 export function ReaderSheet({page,title,large=false,line=null,word=null,wordMode=false,targets}:{page:LibraryPage;title:string;large?:boolean;line?:ImageReadingLine|null;word?:ImageReadingWord|null;wordMode?:boolean;targets?:ImageReadingWord[]}){
   const url=readerPageImage(page),[failed,setFailed]=useState<string|null>(null);
-  return url&&failed!==url?<><ReaderPageCanvas key={url} url={url} label={`${title}، تصویر صفحهٔ ${page.number.toLocaleString('fa-IR')}`} onError={()=>setFailed(url)}/><ReaderLineFocus key={url} line={line} word={word} wordMode={wordMode} targets={targets}/></>:
+  return url&&failed!==url?<><ReaderPageCanvas key={'page-image:'+url} url={url} label={`${title}، تصویر صفحهٔ ${page.number.toLocaleString('fa-IR')}`} onError={()=>setFailed(url)}/><ReaderLineFocus key={'page-focus:'+url} line={line} word={word} wordMode={wordMode} targets={targets}/></>:
     <div className={'rx-text-page'+(large?' rx-text-page-large':'')}>
       <span className="rx-text-page-title">{title}</span><h2>{page.heading||`صفحهٔ ${page.number.toLocaleString('fa-IR')}`}</h2>
       <p>{page.content||'این صفحه متنی ندارد.'}</p><span className="rx-text-page-number">{page.number.toLocaleString('fa-IR')}</span>

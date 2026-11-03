@@ -17,7 +17,7 @@ test('continuous reading holds right then left, turns only beyond the pair and s
 function fixture(){
  const slots=[],effects=[],calls=[];let cursor=0;
  const react={useRef:initial=>{const i=cursor++;return slots[i]||(slots[i]={current:initial});},useState:initial=>{const i=cursor++;if(!(i in slots))slots[i]=initial;return [slots[i],value=>slots[i]=typeof value==='function'?value(slots[i]):value];},useEffect:fn=>effects.push(fn),useLayoutEffect:fn=>effects.push(fn)};
- const jsx=(type,props)=>({type,props}),context={exports:{},window:{matchMedia:()=>({matches:false}),setTimeout:()=>1,clearTimeout(){}},require:name=>name==='react'?react:name==='react/jsx-runtime'?{jsx,jsxs:jsx}:name==='../utils/pageLineFocus'?utils.exports:name==='../services/api'?{mediaUrl:url=>url}:{}};
+ const jsx=(type,props,key)=>({type,props,key}),context={exports:{},window:{matchMedia:()=>({matches:false}),setTimeout:()=>1,clearTimeout(){}},require:name=>name==='react'?react:name==='react/jsx-runtime'?{jsx,jsxs:jsx}:name==='../utils/pageLineFocus'?utils.exports:name==='../services/api'?{mediaUrl:url=>url}:{}};
  vm.runInNewContext(compile('components/ReaderBook.tsx'),context);
  const page=number=>({bookId:5,number,content:'متن کتاب',sourceImageUrl:'/private/page-'+number,audioUrl:'/private/voice-'+number});
  const word={start:0,end:3,time:4,endTime:5,rects:[{x:.4,y:.2,width:.1,height:.03}]};
@@ -26,8 +26,22 @@ function fixture(){
  const find=(tree,part)=>{if(!tree||typeof tree!=='object')return null;if(tree.props?.className?.split(' ').includes(part))return tree;for(const child of [tree.props?.children].flat()){const found=find(child,part);if(found)return found;}return null;};
  const event=(x=450,y=215,detail=1)=>({clientX:x,clientY:y,detail,currentTarget:{querySelector:()=>({width:1000,height:1000,getBoundingClientRect:()=>({left:0,top:0,width:1000,height:1000})})}});
  const tap=(button,x,y)=>{button.props.onPointerDown(event(x,y));button.props.onClick(event(x,y));};
- return {render,find,event,tap,calls,page,word,slots};
+ const sheet=number=>{cursor=0;return context.exports.ReaderSheet({page:page(number),title:'کتاب'});};
+ return {render,find,event,tap,calls,page,word,slots,sheet};
 }
+
+test('page images and their word overlays have independent identities across skipped pages and reverse navigation',()=>{
+ const f=fixture(),identities=new Map();
+ for(const number of [4,8,9,8,4]){
+  const children=f.sheet(number).props.children,keys=children.map(child=>child.key);
+  // Duplicate sibling keys leave the outgoing canvas orphaned during React
+  // reconciliation: page 8 can then display page 4 underneath its new word map.
+  assert.equal(new Set(keys).size,children.length);
+  assert.equal(children[0].props.url,'/private/page-'+number);
+  if(identities.has(number))assert.deepEqual(keys,identities.get(number));
+  else {for(const previous of identities.values())assert.ok(keys.every(key=>!previous.includes(key)));identities.set(number,keys);}
+ }
+});
 test('touches on an unloaded, unmatched or untimed facing sheet never turn the book',()=>{
  for(const facingWords of [undefined,[],[{start:0,end:3,rects:[{x:.4,y:.2,width:.1,height:.03}]}]]){
   const f=fixture(),tree=f.render({facingWords}),left=f.find(tree,'rx-facing-page');f.tap(left,450,215);f.tap(left,100,800);
