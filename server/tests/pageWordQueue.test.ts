@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import sync from 'fs';
 import os from 'os';
 import path from 'path';
+import crypto from 'crypto';
 const fixture=vi.hoisted(()=>({root:''}));
 vi.mock('../src/config',()=>{fixture.root=sync.mkdtempSync(path.join(os.tmpdir(),'bonbook-word-queue-'));return {config:{mediaDirectory:path.join(fixture.root,'media')}};});
 import {pageLineMap,sameAudioWords} from '../src/services/pageLineService';
@@ -25,5 +26,22 @@ describe('Private reader word preparation',()=>{
   const directory=path.join(fixture.root,'page-line-maps'),job=(await fs.readdir(path.join(directory,'jobs')))[0],key=job.slice(0,64);
   const value={status:'ready',coverage:1,lines:[],words:[],refining:true,timedWordCount:0};await fs.writeFile(path.join(directory,key+'.json'),JSON.stringify(value));
   expect(await pageLineMap(page)).toEqual(value);expect(await pageLineMap({...page,language:'fa'})).toEqual(value);
+ });
+ it('keeps ready physical maps when subtitle review changes cues, while isolating changed content and recordings',async()=>{
+  const directory=path.join(fixture.root,'page-line-maps'),job=(await fs.readdir(path.join(directory,'jobs')))[0],key=job.slice(0,64);
+  const ready={status:'ready',coverage:.96,lines:[{start:0,end:10,time:2,x:.1,y:.2,width:.8,height:.03}],words:[],refining:false,timedWordCount:0};
+  await fs.writeFile(path.join(directory,key+'.json'),JSON.stringify(ready));
+  expect(await pageLineMap({...page,audioCues:'[{"time":3,"offset":0}]',audioCueMode:'PARTIAL'})).toEqual(ready);
+  expect((await pageLineMap({...page,content:page.content+' تازه'})).status).toBe('processing');
+  expect((await pageLineMap({...page,audioAssetId:'new-recording'})).status).toBe('processing');
+ });
+ it('migrates completed v6 line-only maps without repeating OCR or speech recognition',async()=>{
+  const input={...page,sourcePageNumber:12},directory=path.join(fixture.root,'page-line-maps');
+  const key=crypto.createHash('sha256').update(JSON.stringify(['words-v6-worker','pdf',12,'voice','fa',input.content,input.audioCues,'auto'])).digest('hex');
+  const ready={status:'ready',coverage:.96,lines:[{start:0,end:10,time:2,x:.1,y:.2,width:.8,height:.03}],words:[],refining:false,timedWordCount:0};
+  await fs.writeFile(path.join(directory,key+'.json'),JSON.stringify(ready));
+  const before=await fs.readdir(path.join(directory,'jobs'));
+  expect(await pageLineMap(input)).toEqual(ready);
+  expect(await fs.readdir(path.join(directory,'jobs'))).toEqual(before);
  });
 });

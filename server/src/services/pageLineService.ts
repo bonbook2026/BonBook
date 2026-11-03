@@ -54,11 +54,13 @@ async function ocrRows(source:Source,number:number|null){
 export async function pageLineMap(page:LinePage):Promise<PageLineResult>{
  const source=page.image||page.source,number=page.image?null:page.sourcePageNumber;
  if(!source||!page.content.trim()||['TEXT','IMAGE'].includes(page.visualMode)||!(source.mimeType.startsWith('image/')||source.mimeType==='application/pdf'&&number))return {status:'unavailable',lines:[],coverage:0,message:'برای این صفحه تصویر و متنِ قابل تطبیق ثبت نشده است.'};
- const alignment=page.alignments.find(job=>job.audioAssetId===page.audioAssetId&&job.words!=='[]'),key=crypto.createHash('sha256').update(JSON.stringify(['words-v6-worker',source.id,number,page.audioAssetId,page.language?.split('-')[0]||'fa',page.content,page.audioCues,alignment?.words||'auto'])).digest('hex'),directory=wordDirectory(),file=path.join(directory,key+'.json');
+ // Image geometry and recognition depend on content/audio, not subtitle cues.
+ // Cue review must not discard an already prepared physical reading map.
+ const alignment=page.alignments.find(job=>job.audioAssetId===page.audioAssetId&&job.words!=='[]'),language=page.language?.split('-')[0]||'fa',hash=(value:unknown[])=>crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex'),key=hash(['words-v7-physical',source.id,number,page.audioAssetId,language,page.content,alignment?.words||'auto']),directory=wordDirectory(),file=path.join(directory,key+'.json');
  let cached:PageLineResult|undefined;try{cached=JSON.parse(await fs.readFile(file,'utf8'));if(cached?.status==='ready'&&!cached.refining)return cached;if(cached?.status==='unavailable'&&Date.now()-(await fs.stat(file)).mtimeMs<60000)return cached;}catch{}
  await fs.mkdir(jobDirectory(),{recursive:true,mode:0o700});
  // Preserve already verified maps while migrating processing out of the web API.
- if(!cached){const legacy=crypto.createHash('sha256').update(JSON.stringify(['words-v5-aligned',source.id,number,page.audioAssetId,page.content,page.audioCues,alignment?.words||''])).digest('hex');try{const old=JSON.parse(await fs.readFile(path.join(directory,legacy+'.json'),'utf8'));if(old.status==='ready'&&old.timedWordCount>0&&!old.refining){await saveJson(file,old);return old;}}catch{}}
+ if(!cached){for(const legacy of [hash(['words-v6-worker',source.id,number,page.audioAssetId,language,page.content,page.audioCues,alignment?.words||'auto']),hash(['words-v5-aligned',source.id,number,page.audioAssetId,page.content,page.audioCues,alignment?.words||''])])try{const old=JSON.parse(await fs.readFile(path.join(directory,legacy+'.json'),'utf8'));if(old.status==='ready'&&old.lines.length&&!old.refining){await saveJson(file,old);return old;}}catch{}}
  const queued=path.join(jobDirectory(),key+'.job.json'),working=path.join(jobDirectory(),key+'.working.json');
  try{await fs.access(working);}catch{if((await fs.readdir(jobDirectory())).length<64)try{await fs.writeFile(queued,JSON.stringify({page,key}),{mode:0o600,flag:'wx'});}catch(error){if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;}}
  return cached?.status==='ready'?cached:{status:'processing',lines:[],coverage:0};

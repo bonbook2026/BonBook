@@ -20,9 +20,16 @@ export function bookFocusTransform(single:boolean,line:ImageReadingLine|null,vis
  return `translate(${(.5-u*scale)*100}%,${(.5-v*scale)*100}%) scale(${scale})`;
 }
 export function activeImageLine(lines:ImageReadingLine[],offset:number,time:number,useTimes:boolean){
+ if(useTimes){let selected:ImageReadingLine|null=null,hasTimes=false;for(const line of lines)if(typeof line.time==='number'&&Number.isFinite(line.time)&&line.time>=0){hasTimes=true;if(time+1e-6>=line.time&&(!selected||line.time>selected.time!))selected=line;}if(hasTimes)return selected;}
  if(offset<0)return null;
- if(useTimes){const timed=lines.filter(line=>typeof line.time==='number');for(let i=timed.length-1;i>=0;i--)if(time>=timed[i].time!)return timed[i];return null;}
  return lines.find(line=>offset>=line.start&&offset<line.end)||null;
+}
+// Physical row timing comes from recognition of this recording, independently
+// of the saved subtitle mode. Missing word intervals must not hide a ready row.
+export function imageReadingLine(lines:ImageReadingLine[],word:ImageReadingWord|null,offset:number,time:number,enabled:boolean){
+ if(!enabled)return null;
+ const parent=word?.lineStart!==undefined?lines.find(line=>line.start===word.lineStart):undefined;
+ return parent||activeImageLine(lines,offset,time,true);
 }
 export function hitImageLine(lines:ImageReadingLine[],x:number,y:number){
  if(x<0||x>1||y<0||y>1)return null;

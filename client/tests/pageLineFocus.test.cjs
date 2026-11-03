@@ -8,4 +8,15 @@ test('a word touch uses its actual glyph boxes and never falls back to a line cu
 test('text touches select the actual row and never guess voice times or hits in margins',()=>{const {hitImageLine,imageLineTime}=context.exports;assert.equal(hitImageLine(lines,.5,.21),lines[1]);assert.equal(hitImageLine(lines,.02,.21),null);assert.equal(hitImageLine(lines,.5,.8),null);assert.equal(imageLineTime(lines[1]),5);assert.equal(imageLineTime({...lines[1],time:undefined},[{offset:24,time:8}]),8);assert.equal(imageLineTime({...lines[1],time:undefined},[{offset:0,time:0}]),null);});
 test('keeps the first spoken line centered when the desk clips a taller zoomed book',()=>{const {bookFocusTransform}=context.exports;const transform=bookFocusTransform(false,lines[0],.4),y=Number(transform.match(/,(-?[\d.]+)%/)[1])/100;assert.ok(Math.abs(y+(lines[0].y+lines[0].height/2)*2.25-.5)<.00001);});
 test('zoom moves original page pixels and clamps top and bottom so the page fills its viewport',()=>{const {bookFocusTransform}=context.exports;for(const single of [false,true]){const first=bookFocusTransform(single,{...lines[0],y:0}),last=bookFocusTransform(single,{...lines[0],y:.98});assert.ok(first.includes(',0%)'));const y=Number(last.match(/,(-?[\d.]+)%/)[1]);const scale=single?1.8:2.25;assert.ok(Math.abs(y-(1-scale)*100)<.001);}});
-test('follows physical line timestamps and seeks backwards without guessing an unmatched offset',()=>{assert.equal(activeImageLine(lines,30,6,true),lines[1]);assert.equal(activeImageLine(lines,0,2,true),lines[0]);assert.equal(activeImageLine(lines,-1,6,true),null);assert.equal(activeImageLine(lines,0,.5,true),null);assert.equal(activeImageLine(lines,22,3,false),null);assert.equal(activeImageLine(lines,25,3,false),lines[1]);});
+test('physical row timestamps work without a subtitle offset and follow reverse seeking',()=>{assert.equal(activeImageLine(lines,30,6,true),lines[1]);assert.equal(activeImageLine(lines,0,2,true),lines[0]);assert.equal(activeImageLine(lines,-1,6,true),lines[1]);assert.equal(activeImageLine(lines,-1,.5,true),null);assert.equal(activeImageLine(lines,22,3,false),null);assert.equal(activeImageLine(lines,25,3,false),lines[1]);});
+test('partial subtitles and missing word intervals cannot leave a ready physical line unmarked',()=>{const {imageReadingLine}=context.exports;
+ // The subtitle offset still points at row one; row two has real recognition
+ // evidence but the currently spoken word has no exact word interval.
+ assert.equal(imageReadingLine(lines,null,5,6,true),lines[1]);
+ assert.equal(imageReadingLine(lines,null,-1,6,true),lines[1]);
+ assert.equal(imageReadingLine(lines,{...words[0],lineStart:999},5,6,true),lines[1]);
+ assert.equal(imageReadingLine(lines,{...words[0],lineStart:0},5,1.2,true),lines[0]);
+ assert.equal(imageReadingLine(lines,null,5,6,false),null);
+ assert.equal(imageReadingLine(lines,null,-1,.5,true),null);
+ assert.equal(imageReadingLine([{...lines[0],time:undefined}],null,5,6,true).start,0);
+});
