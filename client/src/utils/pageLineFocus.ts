@@ -31,6 +31,9 @@ export function imageReadingLine(lines:ImageReadingLine[],word:ImageReadingWord|
  const parent=word?.lineStart!==undefined?lines.find(line=>line.start===word.lineStart):undefined;
  return parent||activeImageLine(lines,offset,time,true);
 }
+export function imageReadingOffset(line:ImageReadingLine|null,offset:number){
+ return line&&(offset<line.start||offset>=line.end)?line.start:offset;
+}
 export function hitImageLine(lines:ImageReadingLine[],x:number,y:number){
  if(x<0||x>1||y<0||y>1)return null;
  return lines.filter(line=>x>=line.x-.012&&x<=line.x+line.width+.012&&y>=line.y-.006&&y<=line.y+line.height+.006).sort((a,b)=>Math.abs(y-a.y-a.height/2)-Math.abs(y-b.y-b.height/2))[0]||null;

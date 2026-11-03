@@ -20,3 +20,12 @@ test('partial subtitles and missing word intervals cannot leave a ready physical
  assert.equal(imageReadingLine(lines,null,-1,.5,true),null);
  assert.equal(imageReadingLine([{...lines[0],time:undefined}],null,5,6,true).start,0);
 });
+test('a real row start advances captions through missing word timing without changing exact word times',()=>{const {imageReadingOffset,imageReadingLine,exactWordTime}=context.exports;
+ const line=imageReadingLine(lines,null,5,6,true);
+ assert.equal(imageReadingOffset(line,5),24);
+ assert.equal(imageReadingOffset(line,-1),24);
+ assert.equal(imageReadingOffset(line,30),30);
+ assert.equal(imageReadingOffset(null,-1),-1);
+ assert.equal(imageReadingOffset(lines[0],30),0);
+ assert.equal(exactWordTime(words[2]),null);
+});

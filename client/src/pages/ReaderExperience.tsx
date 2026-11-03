@@ -16,7 +16,7 @@ import {ReaderImmersive} from '../components/ReaderImmersive';
 import {resumeDevicePage,saveDeviceReading} from '../utils/readingProgress';
 import {useReaderProtection,ReaderAccountStamp} from '../components/ReaderProtection';
 import {usePageLineMap} from '../hooks/usePageLineMap';
-import {imageReadingLine,activeImageWord,exactWordTime,imageLineTime,imageWordOffset,ImageReadingLine,ImageReadingWord} from '../utils/pageLineFocus';
+import {imageReadingLine,imageReadingOffset,activeImageWord,exactWordTime,imageLineTime,imageWordOffset,ImageReadingLine,ImageReadingWord} from '../utils/pageLineFocus';
 import {journeySeekTarget} from '../utils/readingJourney';
 import {advanceReadingSpread} from '../utils/readingSpread';
 
@@ -94,8 +94,9 @@ export function Reader(){
   const lineMap=usePageLineMap(page,Boolean(page?.content));
   const facingMap=usePageLineMap(shownFacing,Boolean(shownFacing?.content));
   const focusWord=lineMap?.status==='ready'?activeImageWord(lineMap.words||[],audio.elapsedSeconds,active&&audio.status!=='idle'):null;
-  const offset=(lineMap?.status==='ready'?imageWordOffset(lineMap.words||[],audio.elapsedSeconds,active&&audio.status!=='idle'):null)??voiceOffset;
-  const focusLine=lineMap?.status==='ready'?imageReadingLine(lineMap.lines,focusWord,offset,audio.elapsedSeconds,active&&audio.status!=='idle'):null;
+  const wordOffset=(lineMap?.status==='ready'?imageWordOffset(lineMap.words||[],audio.elapsedSeconds,active&&audio.status!=='idle'):null)??voiceOffset;
+  const focusLine=lineMap?.status==='ready'?imageReadingLine(lineMap.lines,focusWord,wordOffset,audio.elapsedSeconds,active&&audio.status!=='idle'):null;
+  const offset=imageReadingOffset(focusLine,wordOffset);
   const readFromWord=(word:ImageReadingWord|null,target:LibraryPage)=>{
     if(!book||Date.now()-swiped.current<500)return;
     if(!target.audioUrl){setError('برای این صفحه هنوز ویس ثبت نشده است.');return;}
