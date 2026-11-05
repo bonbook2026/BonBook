@@ -1,6 +1,8 @@
 'use strict';
 const {app,BrowserWindow,WebContentsView,ipcMain,dialog,clipboard,shell,protocol,net,session}=require('electron');
 const fs=require('node:fs/promises'),sync=require('node:fs'),path=require('node:path'),{pathToFileURL}=require('node:url'),crypto=require('node:crypto'),core=require('./book-core.cjs'),comic=(()=>{try{return require('../shared/comic-layout.cjs');}catch{return require('../../shared/comic-layout.cjs');}})(),catalogStore=require('./project-catalog.cjs');
+const chatBridge=require('./chat-composer.cjs'),{ImageWorkflow,targetFor}=require('./image-workflow.cjs');
+let workflow,autoDownload=null;
 let window,chat,project=null,directory='',browserVisible=true,armed=null,busy=false,message='',warning='',progress=null,saveQueue=Promise.resolve(),catalogQueue=Promise.resolve(),projects=[];
 const profile=process.argv.find(arg=>arg.startsWith('--studio-profile='));if(profile)app.setPath('userData',path.resolve(profile.slice('--studio-profile='.length)));
 const uiFile=path.join(__dirname,'../ui/index.html'),assets=new Map();
@@ -8,7 +10,7 @@ protocol.registerSchemesAsPrivileged([{scheme:'bonbook-asset',privileges:{standa
 const lock=app.requestSingleInstanceLock();if(!lock)app.quit();
 function checked(){if(!project||!directory)throw Error('ابتدا یک پروژهٔ کتاب باز کن.');return project;}
 function urlFor(relative){if(!relative)return null;const file=core.resolveAsset(directory,relative),id=crypto.createHash('sha256').update(directory+'\0'+relative).digest('hex');assets.set(id,file);return 'bonbook-asset://media/'+id;}
-function state(){return {version:app.getVersion(),projects:projects.map(({directory,...row})=>row),project:project?{...project,pages:project.pages.map(p=>({...p,imageUrl:urlFor(p.image),audioUrl:urlFor(p.audio),scenes:core.scenes.schedule(p.scenes||[],p.audioCues).map(s=>({...s,imageUrl:urlFor(s.image),foregroundUrl:urlFor(s.foreground),comicText:comic.comicText(p.content,s)}))}))}:null,directory:directory?path.basename(directory):'',busy,message,warning,progress,browserVisible,armed:armed?{number:armed.number,sceneId:armed.sceneId,asset:armed.asset}:null};}
+function state(){return {version:app.getVersion(),workflow:workflow?.state(),projects:projects.map(({directory,...row})=>row),project:project?{...project,pages:project.pages.map(p=>({...p,imageUrl:urlFor(p.image),audioUrl:urlFor(p.audio),scenes:core.scenes.schedule(p.scenes||[],p.audioCues).map(s=>({...s,imageUrl:urlFor(s.image),foregroundUrl:urlFor(s.foreground),comicText:comic.comicText(p.content,s)}))}))}:null,directory:directory?path.basename(directory):'',busy,message,warning,progress,browserVisible,armed:armed?{number:armed.number,sceneId:armed.sceneId,asset:armed.asset}:null};}
 function selectedScene(page){return page.scenes?.find(s=>s.id===page.selectedScene)||page.scenes?.[0];}
 function replan(page){page.scenes=core.scenes.planPage(page.content,page.scenes||[]);page.selectedScene=selectedScene(page)?.id??null;}
 function emit(){if(window&&!window.isDestroyed())window.webContents.send('studio:state',state());}
@@ -18,9 +20,48 @@ async function run(fn){if(busy)throw Error('کار قبلی هنوز تمام ن
 function bounds(){if(!chat||!window)return;const {width,height}=window.getContentBounds(),panel=Math.min(500,Math.max(370,Math.round(width*.38)));chat.setVisible(browserVisible);if(browserVisible)chat.setBounds({x:0,y:76,width:width-panel,height:Math.max(100,height-76)});window.webContents.send('studio:layout',{panel});}
 async function chooseFiles(kind,multiple=false){const filters=kind==='image'?[{name:'تصویر',extensions:['png','jpg','jpeg','webp']}]:[{name:'صوت',extensions:['mp3','wav','ogg','m4a','aac','flac','webm']}];return dialog.showOpenDialog(window,{properties:multiple?['openFile','multiSelections']:['openFile'],filters});}
 async function attachOne(number,kind,file){checked();await core.attach(project,directory,number,file,kind);message=`${kind==='image'?'تصویر':'صدا'} برای صفحهٔ ${number} ذخیره شد.`;await persist();}
+function installWorkflow(){
+ chatBridge.setDiagnostics(data=>{const file=path.join(app.getPath('userData'),'workflow-diagnostics.jsonl');void fs.appendFile(file,JSON.stringify({at:new Date().toISOString(),...data})+'\n').catch(()=>{});});
+ workflow=new ImageWorkflow({
+  project:()=>project,notify:emit,delay:ms=>new Promise(resolve=>setTimeout(resolve,ms)),
+  select:async(page,scene)=>{project.selected=page.number;page.selectedScene=scene.id;await persist();},
+  prompt:(p,page,scene,asset)=>core.scenes.scenePrompt(p,page,scene,asset),
+  prepare:async value=>{browserVisible=true;bounds();await chatBridge.prepare(chat.webContents,value);},
+  scan:prompt=>chatBridge.scan(chat.webContents,prompt),submit:(value,onAttempt)=>chatBridge.submit(chat.webContents,value,onAttempt,()=>workflow.status==='running'),
+  rememberChat:async()=>{const url=chatBridge.conversationUrl(chat.webContents.getURL());if(url&&project?.id===workflow.projectId&&project.chatUrl!==url){project.chatUrl=url;await persist();}},
+  download:(url,task,id)=>new Promise((resolve,reject)=>{
+   if(autoDownload)return reject(Error('دانلود قبلی هنوز تمام نشده است.'));
+   const request={url,task,id,directory,resolve,reject};autoDownload=request;
+   request.timer=setTimeout(()=>{if(autoDownload===request)autoDownload=null;reject(Error('دریافت تصویر شروع نشد؛ تصویر در چت حفظ شده، ادامه را بزن.'));},45000);
+   try{chat.webContents.downloadURL(url);}catch(error){clearTimeout(request.timer);autoDownload=null;reject(error);}
+  })
+ });
+}
+function captureAutomaticDownload(item,request){
+ clearTimeout(request.timer);autoDownload=null;
+ const folder=path.join(app.getPath('userData'),'image-downloads');sync.mkdirSync(folder,{recursive:true});const temporary=path.join(folder,crypto.randomUUID()+'.download');item.setSavePath(temporary);
+ const deadline=setTimeout(()=>item.cancel(),120000);
+ item.on('updated',()=>{if(item.getReceivedBytes()>30*1024*1024)item.cancel();});
+ item.once('done',async(_event,status)=>{clearTimeout(deadline);try{
+  if(status!=='completed')throw Error('دانلود تصویر کامل نشد؛ برای تلاش دوباره ادامه را بزن.');
+  if(!project||project.id!==request.id||directory!==request.directory)throw Error('پروژه عوض شده است؛ تصویر به کتاب دیگری متصل نشد.');
+  const {scene}=targetFor(project,request.task);if(!scene[request.task.asset])await core.attachScene(project,directory,request.task.number,request.task.sceneId,temporary,request.task.asset);
+  await persist();request.resolve();
+ }catch(error){request.reject(error);}finally{await fs.unlink(temporary).catch(()=>{});}});
+}
 function installIpc(){
  const handlers={
   state:async()=>state(),
+  'workflow-link-chat':async()=>{checked();const url=chatBridge.conversationUrl(chat.webContents.getURL());if(!url)throw Error('ابتدا گفت‌وگوی همین کتاب را در مرورگر باز کن.');project.chatUrl=url;message='گفت‌وگوی فعلی به همین کتاب متصل شد؛ صف تصویرسازی در همین گفت‌وگو ادامه پیدا می‌کند.';await persist();},
+  'workflow-start':payload=>run(async()=>{
+   checked();if(workflow.status==='paused'||workflow.status==='running')throw Error('صف قبلی را ادامه بده یا پایان بده.');armed=null;
+   const saved=chatBridge.conversationUrl(project.chatUrl),current=chat.webContents.getURL();
+   if(saved&&current!==saved||!saved&&chatBridge.conversationUrl(current))await chat.webContents.loadURL(saved||'https://chatgpt.com/');
+   void workflow.start(project,payload?.scope||'page');message='صف تصویرسازی فعال شد؛ وضعیت آن در مرحلهٔ سوم نمایش داده می‌شود.';
+  }),
+  'workflow-pause':async()=>workflow.pause(),
+  'workflow-resume':async()=>{checked();if(workflow.projectId!==project.id)throw Error('ابتدا پروژهٔ صف قبلی را باز کن یا صف را پایان بده.');void workflow.resume();},
+  'workflow-stop':async()=>workflow.stop(),
   'demo-project':()=>run(async()=>{const folder=path.join(app.getPath('userData'),'demo-book');let loaded;try{loaded=await core.loadProject(folder);}catch{loaded=core.newProject('باغ کوچک — نمونهٔ آزمایشی',[{number:1,heading:'یک دانهٔ کوچک',content:'لیلا دانه‌ای کوچک در باغ کاشت. هر صبح به آن آب داد و منتظر جوانه ماند.'},{number:2,heading:'صبح سبز',content:'یک روز صبح، جوانه‌ای سبز از خاک بیرون آمد. لیلا لبخند زد و کنار باغ نشست.'}]);for(const page of loaded.pages)await core.attach(loaded,folder,page.number,path.join(__dirname,'../assets/demo.png'),'image');await core.saveProject(loaded,folder);}directory=folder;project=loaded;armed=null;warning='این کتاب و تصویر فقط نمونهٔ رابط هستند؛ برای روایت، ویس خودت را به صفحه‌ها وصل کن.';browserVisible=false;bounds();message='نمونه باز شد. برای کتاب خودت «کتاب جدید» را از بالای اپ بزن.';await remember();}),
   'new-project':payload=>run(async()=>{
    const mode=payload?.mode??'file',title=payload?.title??'';if(!['file','blank'].includes(mode)||typeof title!=='string'||title.length>200)throw Error('نام و روش ساخت پروژه معتبر نیست.');
@@ -43,7 +84,7 @@ function installIpc(){
   'replace-text':()=>run(async()=>{checked();const files=await dialog.showOpenDialog(window,{title:'متن آماده با شمارهٔ صفحه، یا فایل‌های جدا برای صفحه‌ها',properties:['openFile','multiSelections'],filters:[{name:'متن',extensions:['txt','md']}]});if(files.canceled)return;let pages=[];if(files.filePaths.length===1)pages=core.importPreparedText(await core.decodeText(files.filePaths[0]),files.filePaths[0]);else for(const file of files.filePaths){const n=core.pageNumber(file);if(!n)throw Error(`شمارهٔ صفحه از نام «${path.basename(file)}» مشخص نیست.`);pages.push({number:n,content:core.splitText(await core.decodeText(file)).map(p=>p.content).join('\n\n')});}const existing=new Map(project.pages.map(p=>[p.number,p]));if(new Set(pages.map(p=>p.number)).size!==pages.length||pages.some(p=>!existing.has(p.number)||p.content.length>40000))throw Error('شمارهٔ متن‌ها باید یکتا و در صفحه‌های همین کتاب باشد.');const answer=await dialog.showMessageBox(window,{type:'question',buttons:['انصراف','جایگزینی متن‌ها'],defaultId:0,cancelId:0,message:`متن ${pages.length} صفحه جایگزین شود؟`,detail:'تصویرها و فایل‌های صوتی حفظ می‌شوند. زمان‌بندی قبلی برای متن تغییرکرده دوباره نیاز به تطبیق دارد.'});if(answer.response!==1)return;for(const p of pages){const old=existing.get(p.number);if(old.content!==p.content){old.audioCues=[];old.sceneHistory=(old.scenes||[]).filter(s=>s.image);old.content=p.content;replan(old);}}warning='';message=`متن ${pages.length} صفحه جایگزین شد.`;await persist();}),
   'attach-one':payload=>run(async()=>{checked();if(!['image','audio'].includes(payload.kind))throw Error('نوع فایل معتبر نیست.');const result=await chooseFiles(payload.kind);if(!result.canceled)await attachOne(payload.number,payload.kind,result.filePaths[0]);}),
   'attach-many':payload=>run(async()=>{checked();const kind=payload?.kind;if(!['image','audio'].includes(kind))throw Error('نوع فایل معتبر نیست.');let files;if(payload.folder){const selected=await dialog.showOpenDialog(window,{title:'پوشهٔ فایل‌های شماره‌گذاری‌شده',properties:['openDirectory']});if(selected.canceled)return;const entries=await fs.readdir(selected.filePaths[0],{withFileTypes:true});files=entries.filter(e=>e.isFile()&&(kind==='image'?/\.(png|jpe?g|webp)$/i:/\.(mp3|wav|ogg|m4a|aac|flac|webm)$/i).test(e.name)).map(e=>path.join(selected.filePaths[0],e.name));}else{const selected=await chooseFiles(kind,true);if(selected.canceled)return;files=selected.filePaths;}const match=core.mapFiles(files,project.pages,kind),accepted=match.mapped.filter(p=>!p.replace);if(!accepted.length)throw Error('فایل جدید با شمارهٔ یکتا پیدا نشد؛ فایل‌های قبلی خودکار جایگزین نمی‌شوند. برای اصلاح، فایل همان صفحه را انتخاب کن.');for(const p of accepted)await core.fileInfo(p.file,kind);const answer=await dialog.showMessageBox(window,{type:'question',buttons:['انصراف','وصل‌کردن فایل‌ها'],defaultId:0,cancelId:0,message:`${accepted.length} فایل به صفحه‌های کتاب وصل شود؟`,detail:`صفحه‌ها: ${accepted.map(p=>p.number).slice(0,50).join('، ')}\nنام‌های نامشخص: ${match.unmatched.length} · شماره‌های تکراری: ${match.duplicates.join('، ')||'ندارد'} · فایل قبلی حفظ می‌شود: ${match.mapped.filter(p=>p.replace).length}`});if(answer.response!==1)return;for(let i=0;i<accepted.length;i++){const p=accepted[i];await core.attach(project,directory,p.number,p.file,kind);progress={label:'وصل‌کردن فایل‌ها',current:i+1,total:accepted.length};await persist();}message=`${accepted.length} فایل اضافه شد. ${match.unmatched.length} نام نامشخص و ${match.duplicates.length} شمارهٔ تکراری اعمال نشد.`;}),
-  'prepare-prompt':async payload=>{checked();const page=project.pages.find(p=>p.number===project.selected),scene=selectedScene(page);if(!payload?.setup&&!scene)throw Error('ابتدا متن صفحه را وارد کن تا پلان ساخته شود.');const value=payload?.setup?core.setupPrompt(project):core.scenes.scenePrompt(project,page,scene,payload?.asset);clipboard.writeText(value);if(!payload?.setup)armed={number:project.selected,sceneId:selectedScene(project.pages.find(p=>p.number===project.selected))?.id,asset:payload?.asset==='foreground'?'foreground':'image',id:project.id,directory};browserVisible=true;bounds();message='دستور کپی شد. در کادر چت قرار بده و ارسال را خودت تأیید کن.';try{if(new URL(chat.webContents.getURL()).hostname==='chatgpt.com'){const focused=await chat.webContents.executeJavaScript(`(()=>{const e=document.querySelector('#prompt-textarea[contenteditable="true"],textarea#prompt-textarea,textarea#mobile-composer-prompt');if(!e)return false;e.focus();return true;})()`);if(focused){chat.webContents.focus();chat.webContents.paste();message='دستور در کادر چت آماده است؛ دکمهٔ ارسال و سپس دانلود تصویر را خودت بزن.';}}}catch{}emit();},
+  'prepare-prompt':async payload=>{checked();const page=project.pages.find(p=>p.number===project.selected),scene=selectedScene(page);if(!payload?.setup&&!scene)throw Error('ابتدا متن صفحه را وارد کن تا پلان ساخته شود.');const value=payload?.setup?core.setupPrompt(project):core.scenes.scenePrompt(project,page,scene,payload?.asset);clipboard.writeText(value);if(!payload?.setup)armed={number:project.selected,sceneId:scene.id,asset:payload?.asset==='foreground'?'foreground':'image',id:project.id,directory};browserVisible=true;bounds();await chatBridge.prepare(chat.webContents,value);message='قرارگرفتن دستور در چت تأیید شد؛ می‌توانی ارسال را خودت بزنی یا از صف خودکار استفاده کنی.';emit();},
   'reference-text':async()=>{checked();const file=path.join(directory,'book-context.txt');await fs.writeFile(file,project.pages.map(p=>`=== صفحه ${p.number} ===\n${p.content}`).join('\n\n'),'utf8');shell.showItemInFolder(file);message='متن مرجع آماده شد؛ می‌توانی آن را در چت بارگذاری کنی.';emit();},
   'arm-download':async payload=>{checked();armed={number:project.selected,sceneId:selectedScene(project.pages.find(p=>p.number===project.selected))?.id,asset:payload?.asset==='foreground'?'foreground':'image',id:project.id,directory};message='دانلود تصویر بعدی فقط به پلان انتخاب‌شده وصل می‌شود.';emit();},
   'cancel-download':async()=>{armed=null;emit();},
@@ -53,15 +94,17 @@ function installIpc(){
   export:()=>run(async()=>{checked();const missing=project.pages.filter(p=>!p.audio||!(p.scenes?.length?p.scenes.every(s=>s.image&&(!s.layered||s.foreground)):p.image)).length;if(missing){const choice=await dialog.showMessageBox(window,{type:'question',buttons:['برگشت به صفحه‌ها','خروجی با فایل‌های موجود'],defaultId:0,cancelId:0,message:`${missing} صفحه هنوز تصویر یا ویس ندارد.`,detail:'متن و فایل‌های آماده منتقل می‌شوند؛ می‌توانی بقیه را بعداً اضافه کنی.'});if(choice.response!==1)return;}const dest=await dialog.showSaveDialog(window,{title:'خروجی کتاب برای BonBook',defaultPath:project.book.title.replace(/[<>:"/\\|?*]/g,'-')+'.bonbook.zip',filters:[{name:'بستهٔ کتاب BonBook',extensions:['zip']}]});if(dest.canceled||!dest.filePath)return;const result=await core.exportPackage(project,directory,dest.filePath,(current,total)=>{progress={label:'ساخت بستهٔ کتاب',current,total};emit();});message=`بسته آماده شد: ${result.pages} صفحه، ${result.images} تصویر و ${result.audio} ویس. در BonBook، تب «ورود فایل»، بخش «بستهٔ کتاب مصور» بارگذاری کن.`;shell.showItemInFolder(dest.filePath);}),
   preview:async()=>{checked();browserVisible=false;bounds();message='پلان‌ها را انتخاب کن؛ حرکت پیشنهادی دیده می‌شود. تعویض خودکار تصویر همراه صدا پس از زمان‌بندی واقعی BonBook فعال می‌شود.';emit();}
  };
- for(const [name,fn]of Object.entries(handlers))ipcMain.handle('studio:'+name,async(event,payload)=>{if(event.sender!==window.webContents||event.senderFrame.url!==pathToFileURL(uiFile).href)throw Error('دسترسی مجاز نیست.');try{await fn(payload);return state();}catch(error){message=error instanceof Error?error.message:'کار کامل نشد.';emit();return {...state(),error:message};}});
+ for(const [name,fn]of Object.entries(handlers))ipcMain.handle('studio:'+name,async(event,payload)=>{if(event.sender!==window.webContents||event.senderFrame.url!==pathToFileURL(uiFile).href)throw Error('دسترسی مجاز نیست.');try{if(workflow?.status==='running'&&!['state','workflow-pause','browser','external-browser'].includes(name))throw Error('ابتدا تصویرسازی خودکار را متوقف کن.');await fn(payload);return state();}catch(error){message=error instanceof Error?error.message:'کار کامل نشد.';emit();return {...state(),error:message};}});
 }
 async function createWindow(){
  window=new BrowserWindow({width:1380,height:900,minWidth:980,minHeight:650,title:'BonBook Studio',backgroundColor:'#f6f9f3',autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
  window.webContents.setWindowOpenHandler(()=>({action:'deny'}));window.webContents.on('will-navigate',(event,url)=>{try{if(new URL(url).href!==pathToFileURL(uiFile).href)event.preventDefault();}catch{event.preventDefault();}});
  const chatSession=session.fromPartition('persist:bonbook-chatgpt');chatSession.setPermissionRequestHandler((_web,permission,callback)=>callback(false));
  chat=new WebContentsView({webPreferences:{partition:'persist:bonbook-chatgpt',contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});window.contentView.addChildView(chat);
+ installWorkflow();
  const navigation=(event,url)=>{try{if(new URL(url).protocol!=='https:')event.preventDefault();}catch{event.preventDefault();}};chat.webContents.on('will-navigate',navigation);chat.webContents.setWindowOpenHandler(({url})=>{try{if(new URL(url).protocol!=='https:')return {action:'deny'};}catch{return {action:'deny'};}return {action:'allow',overrideBrowserWindowOptions:{width:920,height:800,autoHideMenuBar:true,webPreferences:{partition:'persist:bonbook-chatgpt',contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}}};});
  chatSession.on('will-download',async(_event,item,contents)=>{
+  if(contents===chat.webContents&&autoDownload&&(item.getURL()===autoDownload.url||item.getURLChain().includes(autoDownload.url))){const request=autoDownload;try{captureAutomaticDownload(item,request);}catch(error){item.cancel();autoDownload=null;clearTimeout(request.timer);request.reject(error);}return;}
   if(contents!==chat.webContents||!armed||!(/^image\/(png|jpeg|webp)$/.test(item.getMimeType())||/\.(png|jpe?g|webp)$/i.test(item.getFilename())))return;
   const target=armed;armed=null;emit();const folder=path.join(app.getPath('userData'),'image-downloads');await fs.mkdir(folder,{recursive:true});const temporary=path.join(folder,crypto.randomUUID()+'.download');item.setSavePath(temporary);
   item.on('updated',()=>{if(item.getReceivedBytes()>30*1024*1024)item.cancel();});
@@ -70,14 +113,14 @@ async function createWindow(){
  window.on('resize',bounds);window.on('closed',()=>{chat?.webContents.close();chat=null;window=null;});
  await window.loadURL(pathToFileURL(uiFile).href);bounds();chat.webContents.loadURL('https://chatgpt.com/').catch(()=>{});
  projects=await catalogStore.readCatalog(path.join(app.getPath('userData'),'projects.json'));
- let restored='',legacy='';try{legacy=await fs.readFile(path.join(app.getPath('userData'),'last-project.txt'),'utf8');const old=await core.loadProject(legacy);if(!projects.some(p=>p.id===old.id))await remember(old,legacy);}catch{}
+ let restored='',legacy='';try{legacy=await fs.readFile(path.join(app.getPath('userData'),'last-project.txt'),'utf8');const old=await core.loadProject(legacy);if(!projects.some(p=>p.id===old.id))await remember(old,legacy);}catch{legacy='';}
  // Carry books created in the task's separate preview into the installed app.
  // Only project files are read; browser sessions are never copied.
  if(path.basename(app.getPath('userData'))!=='BonBook Studio UX Preview'){
   const preview=await catalogStore.readCatalog(path.join(app.getPath('appData'),'BonBook Studio UX Preview','projects.json'));
   for(const row of [...preview].reverse())if(!projects.some(p=>p.id===row.id))try{const loaded=await core.loadProject(row.directory);await remember(loaded,row.directory);restored=row.directory;}catch{}
  }
- try{const requested=!app.isPackaged&&process.argv.find(arg=>arg.startsWith('--studio-project=')),last=requested?path.resolve(requested.slice('--studio-project='.length)):restored||legacy;if(last){project=await core.loadProject(last);directory=last;await remember();if(restored&&!requested)await fs.writeFile(path.join(app.getPath('userData'),'last-project.txt'),last);}}catch{}emit();
+ try{const requested=!app.isPackaged&&process.argv.find(arg=>arg.startsWith('--studio-project=')),last=requested?path.resolve(requested.slice('--studio-project='.length)):legacy||restored;if(last){project=await core.loadProject(last);directory=last;await remember();if(restored&&!legacy&&!requested)await fs.writeFile(path.join(app.getPath('userData'),'last-project.txt'),last);}}catch{}emit();
 }
 app.whenReady().then(async()=>{protocol.handle('bonbook-asset',request=>{const u=new URL(request.url),file=u.hostname==='media'?assets.get(u.pathname.slice(1)):null;return file?net.fetch(pathToFileURL(file).href):new Response('Not found',{status:404});});installIpc();await createWindow();}).catch(error=>{dialog.showErrorBox('BonBook Studio',error.message);app.quit();});
 app.on('second-instance',()=>{if(window){if(window.isMinimized())window.restore();window.focus();}});

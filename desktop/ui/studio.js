@@ -43,7 +43,7 @@ function scenePreview(page,scene){
 }
 async function call(name,payload){const result=await window.studio.call(name,payload);render(result);return result;}
 function render(s){const changed=current?.project?.id!==s.project?.id;current=s;const p=s.project;projectList(s.projects);if(s.version)$('app-version').textContent=s.version;document.body.classList.toggle('full',!s.browserVisible);$('browser-toggle').textContent=s.browserVisible?'نمایش کتاب':'نمایش مرورگر';$('welcome').hidden=Boolean(p);$('workspace').hidden=!p;$('notice').hidden=!s.message;$('notice').textContent=s.message||'';$('notice').classList.toggle('error',Boolean(s.error));$('warning').hidden=!s.warning;$('warning').textContent=s.warning||'';for(const b of document.querySelectorAll('button'))b.disabled=s.busy;$('progress').hidden=!s.progress;if(s.progress){$('progress').querySelector('span').textContent=`${s.progress.label} · ${fa(s.progress.current)} از ${fa(s.progress.total)}`;$('progress').querySelector('progress').value=s.progress.current/s.progress.total*100;}if($('new-project-dialog').open)$('new-project-status').textContent=s.progress?`${s.progress.label} · ${fa(s.progress.current)} از ${fa(s.progress.total)}`:s.busy?'در حال آماده‌سازی پروژه…':s.error?s.message:'';
- if(!p)return;if(changed)showTab(savedStep(p));$('book-title').textContent=p.book.title;$('page-count').textContent=fa(p.pages.length);$('image-count').textContent=fa(p.pages.reduce((n,x)=>n+Number(Boolean(x.image))+(x.scenes||[]).reduce((m,s)=>m+Number(Boolean(s.imageUrl))+Number(Boolean(s.foregroundUrl)),0),0));$('audio-count').textContent=fa(p.pages.filter(x=>x.audio).length);
+ if(!p){renderWorkflow(s);return;}if(changed)showTab(savedStep(p));$('book-title').textContent=p.book.title;$('page-count').textContent=fa(p.pages.length);$('image-count').textContent=fa(p.pages.reduce((n,x)=>n+Number(Boolean(x.image))+(x.scenes||[]).reduce((m,s)=>m+Number(Boolean(s.imageUrl))+Number(Boolean(s.foregroundUrl)),0),0));$('audio-count').textContent=fa(p.pages.filter(x=>x.audio).length);
  const select=$('page-select');if(select.options.length!==p.pages.length||select.dataset.project!==p.id){select.replaceChildren(...p.pages.map(x=>{const o=document.createElement('option');o.value=x.number;o.textContent=fa(x.number);return o;}));select.dataset.project=p.id;}select.value=p.selected;
  const page=p.pages.find(x=>x.number===p.selected)||p.pages[0];$('previous').disabled=s.busy||page===p.pages[0];$('next').disabled=s.busy||page===p.pages.at(-1);
  for(const [id,value]of Object.entries({title:p.book.title,author:p.book.author,description:p.book.description,style:p.style,characters:p.characters,presentation:p.presentation||'SCENES','page-heading':page.heading,'page-content':page.content})){if(document.activeElement!==$(id))$(id).value=value;}
@@ -51,10 +51,11 @@ function render(s){const changed=current?.project?.id!==s.project?.id;current=s;
  document.querySelector('.scene-settings').hidden=!scenes.length;document.querySelector('.layer-tools').hidden=!selected?.layered;$('prepare-page').disabled=s.busy||!scenes.length;$('attach-image').textContent=scenes.length?'تصویر همین پلان':'تصویر این صفحه';
  const audio=$('page-audio');audio.hidden=!page.audioUrl;if(page.audioUrl&&audio.getAttribute('src')!==page.audioUrl){audio.src=page.audioUrl;audio.load();}if(!page.audioUrl){audio.pause();audio.removeAttribute('src');}
  $('armed').hidden=!s.armed;$('armed-label').textContent=s.armed?`دانلود بعدی ← صفحهٔ ${fa(s.armed.number)}، پلان ${fa((p.pages.find(p=>p.number===s.armed.number)?.scenes||[]).findIndex(s=>s.id===current.armed.sceneId)+1)}${s.armed.asset==='foreground'?' · شخصیت شفاف':' · تصویر اصلی'}`:'';
+ renderWorkflow(s);
 }
 window.studio.onState(render);call('state');
 for(const b of document.querySelectorAll('[data-action]'))b.addEventListener('click',()=>performAction(b.dataset.action));
-for(const b of document.querySelectorAll('[data-tab]'))b.addEventListener('click',()=>showTab(b.dataset.tab));
+for(const b of document.querySelectorAll('[data-tab]'))b.addEventListener('click',async()=>{if(await flushDraft())showTab(b.dataset.tab);});
 async function selectPage(number){if(await flushDraft())await call('select-page',number);else render(current);}
 $('page-select').addEventListener('change',e=>selectPage(Number(e.target.value)));
 for(const [id,direction]of [['previous',-1],['next',1]])$(id).addEventListener('click',()=>{const p=current.project,i=p.pages.findIndex(x=>x.number===p.selected),next=p.pages[i+direction];if(next)selectPage(next.number);});
@@ -64,10 +65,28 @@ for(const button of document.querySelectorAll('[data-next-tab]'))button.addEvent
 $('scene-select').addEventListener('change',e=>selectScene(e.target.value));
 $('save-book').addEventListener('click',()=>call('update-book',{title:$('title').value,author:$('author').value,style:$('style').value,characters:$('characters').value,presentation:$('presentation').value}));
 $('save-page').addEventListener('click',()=>call('update-page',{number:current.project.selected,heading:$('page-heading').value,content:$('page-content').value}));
-$('prepare-page').addEventListener('click',()=>call('prepare-prompt',{setup:false,asset:$('asset-layer').value}));$('prepare-setup').addEventListener('click',()=>call('prepare-prompt',{setup:true}));
+$('prepare-page').addEventListener('click',async()=>{if(await flushDraft())await call('prepare-prompt',{setup:false,asset:$('asset-layer').value});});$('prepare-setup').addEventListener('click',async()=>{if(await flushDraft())await call('prepare-prompt',{setup:true});});
 $('attach-image').addEventListener('click',()=>{const page=current.project.pages.find(p=>p.number===current.project.selected);return page.scenes?.length?call('attach-scene',{asset:$('asset-layer').value}):call('attach-one',{kind:'image',number:page.number});});$('attach-audio').addEventListener('click',()=>call('attach-one',{kind:'audio',number:current.project.selected}));
 $('save-scene').addEventListener('click',()=>{const page=current.project.pages.find(p=>p.number===current.project.selected),scene=page.scenes.find(s=>s.id===page.selectedScene)||page.scenes[0];if(scene)call('update-scene',{id:scene.id,title:$('scene-title-input').value,shot:$('scene-shot').value,motion:$('scene-motion').value,effect:$('scene-effect-select').value,layered:$('scene-layered').checked,actorMotion:$('actor-motion').value});});
 $('page-audio').addEventListener('timeupdate',()=>{const page=current?.project?.pages.find(p=>p.number===current.project.selected);if(!page||$('page-audio').paused)return;let scene=page.scenes[0];for(const s of page.scenes)if(s.time!==null&&s.time<=$('page-audio').currentTime)scene=s;scenePreview(page,scene);renderComic(page,scene);});
 $('replace-text').addEventListener('click',()=>call('replace-text'));
 $('audio-folder').addEventListener('click',()=>call('attach-many',{kind:'audio',folder:true}));$('audio-files').addEventListener('click',()=>call('attach-many',{kind:'audio',folder:false}));$('image-folder').addEventListener('click',()=>call('attach-many',{kind:'image',folder:true}));
 $('export').addEventListener('click',async()=>{const saved=await call('update-book',{description:$('description').value});if(!saved.error)call('export');});
+
+function renderWorkflow(s){
+ const flow=s.workflow||{status:'idle'},running=flow.status==='running',paused=flow.status==='paused';
+ $('start-image-workflow').hidden=running||paused;$('start-image-workflow').disabled=s.busy||!s.project;
+ $('pause-image-workflow').hidden=!running;$('pause-image-workflow').disabled=false;
+ $('resume-image-workflow').hidden=!paused;$('resume-image-workflow').disabled=s.busy;
+ $('stop-image-workflow').hidden=!paused;$('stop-image-workflow').disabled=s.busy;
+ $('image-workflow-progress').hidden=!flow.total;$('image-workflow-progress').value=flow.total?flow.done/flow.total*100:0;
+ $('image-workflow-status').textContent=flow.message?(flow.total?fa(flow.done)+' از '+fa(flow.total)+' تصویر · ':'')+flow.message+(running&&flow.elapsed?' · '+fa(flow.elapsed)+' ثانیه':''):'وارد حساب چت‌جی‌پی‌تی شو، محدوده را انتخاب کن و شروع را بزن.';
+ for(const e of document.querySelectorAll('#workspace input,#workspace textarea,#workspace select'))e.disabled=running||s.busy;
+ if(running)for(const b of document.querySelectorAll('button'))if(!['pause-image-workflow','browser-toggle'].includes(b.id))b.disabled=true;
+}
+$('start-image-workflow').addEventListener('click',async()=>{if(await flushDraft())await call('workflow-start',{scope:$('image-scope').value});});
+$('pause-image-workflow').addEventListener('click',()=>call('workflow-pause'));
+$('resume-image-workflow').addEventListener('click',()=>call('workflow-resume'));
+$('stop-image-workflow').addEventListener('click',()=>call('workflow-stop'));
+
+$('link-image-chat').addEventListener('click',async()=>{if(await flushDraft())await call('workflow-link-chat');});
