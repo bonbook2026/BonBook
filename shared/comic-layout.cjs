@@ -11,7 +11,7 @@ function frameGeometry(total,index){
  if(!Number.isInteger(total)||total<1||total>24||!Number.isInteger(index)||index<0||index>=total)throw Error('کادر تصویر معتبر نیست.');
  const start=Math.floor(index/7)*7,count=Math.min(7,total-start),spans=panelSpans(count),span=spans[index-start],rows=Math.ceil(spans.reduce((a,b)=>a+b,0)/6);
  // Reference sheet: 1200 px wide; reserve a separate caption strip per row.
- // The same image aspect ratio is used by the prompt and both readers.
+ // Derive the image prompt ratio from the existing comic grid layout.
  const referenceWidth=1200,gap=12,caption=96,width=(referenceWidth-gap*5)/6*span+gap*(span-1),height=(referenceWidth/.74-gap*(rows-1)-caption*rows)/rows,scale=1536/Math.max(width,height);
  const w=Math.round(width*scale/8)*8,h=Math.round(height*scale/8)*8;
  return {width:w,height:h,orientation:w/h>1.05?'افقی':w/h<.95?'عمودی':'مربع',span};
