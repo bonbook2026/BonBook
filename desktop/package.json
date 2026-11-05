@@ -1,0 +1,63 @@
+{
+  "name": "bonbook-studio",
+  "version": "0.1.0",
+  "description": "BonBook Studio - illustrated audiobook preparation",
+  "author": "BonBook",
+  "private": true,
+  "main": "src/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/*.test.cjs",
+    "pack": "electron-builder --win --x64 --dir",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "dependencies": {
+    "mammoth": "1.13.0",
+    "pdfjs-dist": "6.4.299",
+    "yazl": "3.3.1",
+    "yauzl": "3.4.0"
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.bonbook.studio",
+    "productName": "BonBook Studio",
+    "directories": {
+      "output": "../build/desktop"
+    },
+    "files": [
+      "src/**",
+      "ui/**",
+      "assets/**",
+      "package.json",
+      {
+        "from": "../shared",
+        "to": "shared",
+        "filter": [
+          "illustrated-package.cjs"
+        ]
+      },
+      {
+        "from": "../client/public/fonts",
+        "to": "ui/fonts",
+        "filter": [
+          "*.ttf"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico",
+      "signExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "artifactName": "BonBook-Studio-Setup-${version}.${ext}"
+    }
+  }
+}

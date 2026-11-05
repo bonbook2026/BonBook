@@ -8,6 +8,7 @@ import {CoverEditor} from '../components/CoverEditor';
 import {BatchAudioPanel} from '../components/BatchAudioPanel';
 import {AutomaticAlignment} from '../components/AutomaticAlignment';
 import {BookImportPanel} from '../components/BookImportPanel';
+import {IllustratedPackagePanel} from '../components/IllustratedPackagePanel';
 import {BookTextImportPanel} from '../components/BookTextImportPanel';
 import {AdminPageArtwork} from '../components/BookPageImage';
 import {AudioCueEditor} from '../components/AudioCueEditor';
@@ -32,7 +33,8 @@ export function AdminBook(){
   const refreshAudio=async()=>{const result=await api.admin.book(id);setPages(result.pages);setBook(old=>old?{...old,pageCount:result.book.pageCount}:result.book);if(!dirtyRef.current){const number=draftRef.current.number;if(result.pages.some(page=>page.number===number)){const updated=await api.admin.page(id,number);if(!dirtyRef.current&&draftRef.current.number===number)setDraft(updated.page);}}};
   const load=async()=>{const result=await api.admin.book(id);setBook(result.book);setSavedMetadata(metadataKey(result.book));setPages(result.pages);if(!params.get('view')&&!result.pages.length)task('import');if(result.book.status!=='TRASH'&&result.pages[0])setDraft((await api.admin.page(id,result.pages[0].number)).page);else setDraft(blankPage(1));setDirty(false);};
   useEffect(()=>{void load().catch(e=>setError(e.message));void api.admin.categories().then(r=>setCategories(r.categories)).catch(()=>{});},[id]);
-  const metadataDirty=Boolean(book&&savedMetadata&&metadataKey(book)!==savedMetadata);
+  const metadataDirty=Boolean(book&&savedMetadata&&metadataKey(book)!==savedMetadata),metadataDirtyRef=useRef(metadataDirty);metadataDirtyRef.current=metadataDirty;
+  const refreshIllustrated=async()=>{await refreshAudio();const result=await api.admin.book(id);if(!metadataDirtyRef.current){setBook(result.book);setSavedMetadata(metadataKey(result.book));}};
   useEffect(()=>{const warn=(event:BeforeUnloadEvent)=>{if(dirty||metadataDirty){event.preventDefault();event.returnValue='';}};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[dirty,metadataDirty]);
   const run=async(action:()=>Promise<void>)=>{setBusy(true);setError('');setMessage('');try{await action();}catch(e){setError((e as Error).message);}finally{setBusy(false);}};
   const choose=async(number:number)=>{if(dirty&&!window.confirm('تغییرات این صفحه ذخیره نشده. بدون ذخیره جابه‌جا شوی؟'))return;setPagePicker(false);setError('');setMessage('');if(!pages.some(p=>p.number===number)){setDraft(blankPage(number));setDirty(false);return;}setPageLoading(true);try{setDraft((await api.admin.page(id,number)).page);setDirty(false);}catch(e){setError((e as Error).message);}finally{setPageLoading(false);}};
@@ -46,7 +48,7 @@ export function AdminBook(){
   <div className="admin-guided-tabs"><AdminTaskTabs id="book-work" label="بخش‌های ویرایش کتاب" tasks={bookTasks} value={active} onChange={task}/><button type="button" className="admin-guide-shortcut" aria-label="بازگشت به راهنمای افزودن کتاب" onClick={()=>guide.current?.show()}><span aria-hidden="true">؟</span>راهنما</button></div>
   {dirty&&active!=='pages'&&<div className="admin-unsaved-note"><span>ویرایش صفحهٔ {draft.number.toLocaleString('fa-IR')} هنوز ذخیره نشده است.</span><button onClick={()=>task('pages')}>بازگشت و ذخیره</button></div>}
   {metadataDirty&&active!=='details'&&<div className="admin-unsaved-note"><span>مشخصات یا جلد کتاب را تغییر داده‌ای؛ هنوز ذخیره نشده است.</span><button onClick={()=>task('details')}>بازگشت و ذخیره</button></div>}
-  <AdminTaskPanel id="book-work" task="import" active={active}>{panel('import')&&<><BookImportPanel bookId={id} nextPage={nextPage} onApplied={()=>void refreshAudio().catch(e=>setError(e.message))}/></>}</AdminTaskPanel>
+  <AdminTaskPanel id="book-work" task="import" active={active}>{panel('import')&&<><IllustratedPackagePanel bookId={id} nextPage={nextPage} allowDetails={!metadataDirty} onApplied={refreshIllustrated}/><BookImportPanel bookId={id} nextPage={nextPage} onApplied={()=>void refreshAudio().catch(e=>setError(e.message))}/></>}</AdminTaskPanel>
   <AdminTaskPanel id="book-work" task="text" active={active}>{panel('text')&&<><BookTextImportPanel key={'text-'+id} bookId={id} editorDirty={dirty} onApplied={refreshAudio}/></>}</AdminTaskPanel>
   <AdminTaskPanel id="book-work" task="audio" active={active}>{panel('audio')&&<><BatchAudioPanel bookId={id} onAttached={()=>void refreshAudio().catch(e=>setError(e.message))}/></>}</AdminTaskPanel>
   <AdminTaskPanel id="book-work" task="contents" active={active}>{panel('contents')&&<><ContentsEditor bookId={id} pages={pages} onChoose={number=>{void choose(number);task('pages');}}/></>}</AdminTaskPanel>

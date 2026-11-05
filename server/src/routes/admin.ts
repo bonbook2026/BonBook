@@ -21,6 +21,8 @@ import {libraryHero} from '../controllers/libraryHeroController';
 import {contentSecurity,revokeContentSession} from '../controllers/contentSecurityController';
 import {privateContentHeaders} from '../middleware/contentSecurity';
 import {previewPageTexts,listPageTexts,getPageTexts,applyPageTexts,undoPageTexts,textFilterSettings,previewTextFilterCleanup} from '../controllers/textImportController';
+import {bookPackages,getPackage,uploadPackageChunk,previewPackage,applyPackage} from '../controllers/illustratedPackageController';
+import {PACKAGE_CHUNK} from '../services/illustratedPackage';
 const router = Router();
 router.use(privateContentHeaders,authMiddleware, requireAdmin);
 router.get('/content-security',requireOwner,contentSecurity);
@@ -33,6 +35,12 @@ router.get('/books', adminBooks);
 router.post('/books', adminBooks);
 router.get('/books/:id', adminBook);
 router.get('/books/:id/setup-progress',bookSetupProgress);
+router.get('/books/:id/illustrated-packages',bookPackages);
+router.post('/books/:id/illustrated-packages',bookPackages);
+router.get('/illustrated-packages/:packageId',getPackage);
+router.delete('/illustrated-packages/:packageId',getPackage);
+router.post('/illustrated-packages/:packageId/preview',previewPackage);
+router.post('/illustrated-packages/:packageId/apply',applyPackage);
 router.put('/books/:id', adminBook);
 router.delete('/books/:id', adminBook);
 router.post('/books/:id/state',changeBookState);
@@ -84,6 +92,11 @@ router.get('/books/:id/text-imports/:textImportId/pages/:sourcePage',getPageText
 router.post('/books/:id/text-imports/:textImportId/apply',applyPageTexts);
 router.post('/books/:id/text-imports/:textImportId/undo',undoPageTexts);
 // Large multipart bodies use the existing Nginx upload location; JSON routes stay at 1 MB.
+router.post('/media/illustrated-packages/:packageId/chunks/:chunk',(req,res,next)=>{
+ if(Number(req.get('content-length'))>PACKAGE_CHUNK+1024*1024){next(new HttpError(413,'حجم این بخش فایل بیش از حد مجاز است.'));return;}
+ const directory=path.resolve(config.mediaDirectory,'../package-chunks');fs.mkdirSync(directory,{recursive:true,mode:0o700});
+ multer({storage:multer.diskStorage({destination:directory,filename:(_req,_file,done)=>done(null,crypto.randomUUID()+'.upload')}),limits:{fileSize:PACKAGE_CHUNK,files:1,fields:0}}).single('file')(req,res,error=>{if(error){if(req.file)fs.unlink(req.file.path,()=>{});next(new HttpError(400,'انتقال این بخش کامل نشد؛ دوباره ادامه بده.'));return;}next();});
+},uploadPackageChunk);
 router.post('/media/text-import/:id',(req,res,next)=>{
  if(Number(req.get('content-length'))>10*1024*1024){next(new HttpError(413,'مجموع متن‌های ورودی باید حداکثر ۸ مگابایت باشد.'));return;}
  const directory=path.resolve(config.mediaDirectory,'../text-incoming');fs.mkdirSync(directory,{recursive:true,mode:0o700});

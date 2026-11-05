@@ -18,3 +18,4 @@ coverage/
 .vite/
 __pycache__/
 server/storage/
+desktop/ui/fonts/

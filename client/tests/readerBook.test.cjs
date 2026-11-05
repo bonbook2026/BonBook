@@ -48,6 +48,9 @@ test('touches on an unloaded, unmatched or untimed facing sheet never turn the b
   assert.equal(f.calls.includes('turn'),false);assert.equal(f.calls.includes('zoom'),false);assert.equal(f.calls.length,2);assert.equal(f.calls[0].page,13);assert.equal(f.calls[1].word,null);
  }
 });
+test('an illustrated scene has no printed word targets and can open its normal image preview',()=>{
+ const f=fixture(),tree=f.render({page:{...f.page(12),visualMode:'ILLUSTRATED'},words:[]}),right=f.find(tree,'rx-current-page');f.tap(right,450,215);assert.deepEqual(f.calls,['zoom']);
+});
 test('a word touch keeps its original sheet and word even if the follow camera moves before release',()=>{
  const f=fixture(),tree=f.render(),left=f.find(tree,'rx-facing-page'),down=f.event();left.props.onPointerDown(down);
  left.props.onClick({...f.event(),currentTarget:{querySelector:()=>({width:1000,height:1000,getBoundingClientRect:()=>({left:0,top:300,width:1000,height:1000})})}});

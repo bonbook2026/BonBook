@@ -218,6 +218,7 @@ model LibraryBook {
   textImports     BookTextImport[]
   smartAudioReview Boolean @default(false) @map("smart_audio_review")
   audioReviews    AudioReviewRun[]
+  illustratedPackages IllustratedPackage[]
 
   @@index([status, categoryId])
   @@map("library_books")
@@ -406,6 +407,23 @@ model ImportedPage {
 
   @@unique([importId, number])
   @@map("imported_pages")
+}
+
+model IllustratedPackage {
+  id String @id
+  bookId Int @map("book_id")
+  book LibraryBook @relation(fields:[bookId],references:[id],onDelete:Cascade)
+  filename String
+  size Int
+  status String @default("UPLOADING")
+  manifest String @default("{}")
+  createdById Int @map("created_by_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  appliedAt DateTime? @map("applied_at")
+  appliedStart Int? @map("applied_start")
+  @@index([bookId,createdAt])
+  @@map("illustrated_packages")
 }
 
 // Text-only revisions retain the previous text and timing for a guarded undo.

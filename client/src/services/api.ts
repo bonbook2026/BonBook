@@ -3,6 +3,7 @@ import { IS_DEMO, IS_PREPRODUCTION } from '../config/demo';
 import {SiteFeatures,SiteSection,LibraryHeroSettings} from '../types/siteSettings';
 import {BookSetupProgress} from '../types';
 import {AudioReviewState} from '../types';
+import {IllustratedPackage} from '../types/illustratedPackage';
 
 const BASE_URL = '/api';
 export const mediaUrl = (url: string | null) => url && url.startsWith('/api/media/') ? url : null;
@@ -185,6 +186,13 @@ export const api = {
     saveCategory:(name:string,parentId:number|null,id?:number)=>request<{category:BookCategory}>(`/admin/categories${id?'/'+id:''}`,{method:id?'PUT':'POST',body:JSON.stringify({name,parentId})}),
     deleteCategory:(id:number)=>request<{ok:boolean}>(`/admin/categories/${id}`,{method:'DELETE'}),
     importOptions:()=>request<{ocr:boolean;maxBytes:number;formats:string[]}>('/admin/imports/options'),
+    illustratedPackages:(bookId:number)=>request<{packages:IllustratedPackage[]}>(`/admin/books/${bookId}/illustrated-packages`),
+    startIllustratedPackage:(bookId:number,file:File)=>request<{package:IllustratedPackage}>(`/admin/books/${bookId}/illustrated-packages`,{method:'POST',body:JSON.stringify({filename:file.name,size:file.size})}),
+    illustratedPackage:(id:string)=>request<{package:IllustratedPackage}>(`/admin/illustrated-packages/${id}`),
+    cancelIllustratedPackage:(id:string)=>request<{ok:boolean}>(`/admin/illustrated-packages/${id}`,{method:'DELETE'}),
+    previewIllustratedPackage:(id:string)=>request<{package:IllustratedPackage}>(`/admin/illustrated-packages/${id}/preview`,{method:'POST'}),
+    applyIllustratedPackage:(id:string,startPage:number,autoAlign:boolean,useDetails:boolean)=>request<{package:IllustratedPackage;added:number}>(`/admin/illustrated-packages/${id}/apply`,{method:'POST',body:JSON.stringify({startPage,autoAlign,useDetails})}),
+    uploadIllustratedChunk:async(id:string,index:number,chunk:Blob,signal:AbortSignal)=>{const body=new FormData();body.append('file',chunk,'chunk.bin');const response=await fetch(`${BASE_URL}/admin/media/illustrated-packages/${id}/chunks/${index}`,{method:'POST',headers:authenticationHeaders(),body,signal});const result=await response.json().catch(()=>({error:'انتقال بخش فایل کامل نشد؛ دوباره ادامه بده.'}));if(!response.ok)throw new ApiError(result.error,response.status);},
     imports:(id:number)=>request<{imports:BookImport[]}>(`/admin/books/${id}/imports`),
     textImports:(id:number)=>request<{imports:BookTextImport[]}>(`/admin/books/${id}/text-imports`),
     textFilters:(bookId:number)=>request<{phrases:string[]}>(`/admin/books/${bookId}/text-filters`),

@@ -88,7 +88,7 @@ export async function savePage(req: AuthRequest, res: Response, next: NextFuncti
     const existing=await prisma.libraryPage.findUnique({where:{bookId_number:{bookId,number}}});
     const phrases=await bookTextFilters(prisma,bookId),content=filterNarrationText(rawContent,phrases).content;
     const imageAssetId=req.body.imageAssetId===undefined?existing?.imageAssetId||null:await asset(req.body.imageAssetId,'page-image'),visualMode=req.body.visualMode||existing?.visualMode||'AUTO';
-    if(!['AUTO','TEXT','IMAGE','BOTH'].includes(visualMode))throw new HttpError(400,'شیوهٔ نمایش صفحه معتبر نیست.');
+    if(!['AUTO','TEXT','IMAGE','BOTH','ILLUSTRATED'].includes(visualMode))throw new HttpError(400,'شیوهٔ نمایش صفحه معتبر نیست.');
     if(!content&&!imageAssetId&&!existing?.sourceAssetId)throw new HttpError(400,'متن یا تصویر صفحه را وارد کنید.');
     const rawCues=req.body.audioCues===undefined?(existing?.content===rawContent&&existing?.audioAssetId===audioAssetId?existing.audioCues:'[]'):validateAudioCues(req.body.audioCues,rawContent,audioAssetId);
     const filtered=filterTextAndCues(rawContent,rawCues,audioAssetId,phrases),audioCues=filtered.cues;

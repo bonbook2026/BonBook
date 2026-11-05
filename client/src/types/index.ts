@@ -59,7 +59,7 @@ export interface LibraryPage {
   sourceUrl?:string|null;sourcePageNumber?:number|null;sourceMimeType?:string|null;
   audioCues?:AudioCue[];
   audioCueMode?:'NONE'|'MANUAL'|'AUTO'|'PARTIAL';
-  imageAssetId?:string|null;imageUrl?:string|null;sourceImageUrl?:string|null;visualMode?:'AUTO'|'TEXT'|'IMAGE'|'BOTH';
+  imageAssetId?:string|null;imageUrl?:string|null;sourceImageUrl?:string|null;visualMode?:'AUTO'|'TEXT'|'IMAGE'|'BOTH'|'ILLUSTRATED';
 }
 export interface AudioCue{time:number;offset:number}
 export interface AudioAlignment{id:string;status:'QUEUED'|'PROCESSING'|'READY'|'REVIEW'|'APPLIED'|'FAILED'|'CANCELED';progress:number;coverage:number;lineCoverage:number;duration?:number;warning:string;error:string|null;cues?:AudioCue[];queuePosition?:number|null;candidates:{pageNumber:number;score:number;heading:string}[]}
