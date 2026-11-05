@@ -13,13 +13,14 @@ function validatePackage(input){
  const numbers=new Set(),used=new Set();let previous=0;
  const pages=input.pages.map(p=>{
   if(!p||!Number.isSafeInteger(p.number)||p.number<1||p.number>100000||numbers.has(p.number)||p.number<=previous)fail('شمارهٔ صفحه‌ها باید یکتا و صعودی باشند.');numbers.add(p.number);previous=p.number;
+  const layout=p.layout??'SCENES';if(!['SCENES','COMIC'].includes(layout))fail('قالب صفحهٔ مصور معتبر نیست.');
   const content=text(p.content??'',40000,'متن صفحه'),heading=text(p.heading??'',200,'عنوان صفحه');
   for(const kind of ['image','audio'])if(p[kind]!=null){const value=p[kind];if(!assets.has(value)||!value.startsWith(kind==='image'?'images/':'audio/')||used.has(value))fail('فایلِ یکی از صفحه‌ها موجود نیست یا تکراری است.');if(kind==='image'&&!/\.(png|jpe?g|webp)$/.test(value))fail('قالب تصویر معتبر نیست.');if(kind==='audio'&&!/\.(mp3|wav|ogg|m4a|aac|flac|webm)$/.test(value))fail('قالب صوت معتبر نیست.');used.add(value);}
   const scenes=validateScenes(p.scenes,content);for(const scene of scenes)for(const kind of ['image','foreground'])if(scene[kind]){const image=scene[kind];if(!assets.has(image)||!image.startsWith('images/')||!assetPath(image)||used.has(image))fail('تصویر پلان موجود نیست یا تکراری است.');used.add(image);}
   if(!content.trim()&&!p.image&&!scenes.some(s=>s.image))fail('هر صفحه باید متن یا تصویر داشته باشد.');
   const cues=p.audioCues??[];if(!Array.isArray(cues)||cues.length>2000)fail('زمان‌بندی زیرنویس معتبر نیست.');let t=-1,o=-1;
   for(const c of cues){if(!p.audio||!Number.isFinite(c?.time)||c.time<0||c.time>86400||c.time<=t||!Number.isInteger(c.offset)||c.offset<0||c.offset>=content.length||c.offset<=o)fail('زمان‌بندی باید به ترتیب صدا و داخل متن همین صفحه باشد.');t=c.time;o=c.offset;}
-  return {number:p.number,heading,content,image:p.image??null,audio:p.audio??null,audioCues:cues.map(c=>({time:c.time,offset:c.offset})),...(scenes.length?{scenes}:{})};
+  return {number:p.number,heading,content,layout,image:p.image??null,audio:p.audio??null,audioCues:cues.map(c=>({time:c.time,offset:c.offset})),...(scenes.length?{scenes}:{})};
  });
  if(used.size!==assets.size)fail('بسته دارای فایل اضافه و استفاده‌نشده است.');
  return {format:FORMAT,version:VERSION,book,pages,assets:[...assets.values()]};

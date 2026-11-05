@@ -53,7 +53,7 @@ async function ocrRows(source:Source,number:number|null){
 }
 export async function pageLineMap(page:LinePage):Promise<PageLineResult>{
  const source=page.image||page.source,number=page.image?null:page.sourcePageNumber;
- if(!source||!page.content.trim()||['TEXT','IMAGE','ILLUSTRATED'].includes(page.visualMode)||!(source.mimeType.startsWith('image/')||source.mimeType==='application/pdf'&&number))return {status:'unavailable',lines:[],coverage:0,message:'برای این صفحه تصویر و متنِ قابل تطبیق ثبت نشده است.'};
+ if(!source||!page.content.trim()||['TEXT','IMAGE','ILLUSTRATED','COMIC'].includes(page.visualMode)||!(source.mimeType.startsWith('image/')||source.mimeType==='application/pdf'&&number))return {status:'unavailable',lines:[],coverage:0,message:'برای این صفحه تصویر و متنِ قابل تطبیق ثبت نشده است.'};
  // Image geometry and recognition depend on content/audio, not subtitle cues.
  // Cue review must not discard an already prepared physical reading map.
  const alignment=page.alignments.find(job=>job.audioAssetId===page.audioAssetId&&job.words!=='[]'),language=page.language?.split('-')[0]||'fa',hash=(value:unknown[])=>crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex'),key=hash(['words-v7-physical',source.id,number,page.audioAssetId,language,page.content,alignment?.words||'auto']),directory=wordDirectory(),file=path.join(directory,key+'.json');

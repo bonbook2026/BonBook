@@ -1,6 +1,6 @@
 {
   "name": "bonbook-studio",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "BonBook Studio - illustrated audiobook preparation",
   "author": "BonBook",
   "private": true,
@@ -36,7 +36,7 @@
         "from": "../shared",
         "to": "shared",
         "filter": [
-          "illustrated-package.cjs", "narrative-scenes.cjs"
+          "illustrated-package.cjs", "narrative-scenes.cjs", "comic-layout.cjs"
         ]
       },
       {

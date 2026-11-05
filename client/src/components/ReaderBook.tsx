@@ -4,6 +4,7 @@ import {mediaUrl} from '../services/api';
 import {ReaderAccountStamp} from './ReaderProtection';
 import {ReaderPageCanvas} from './ReaderPageCanvas';
 import {ImageReadingLine,ImageReadingWord,bookFocusTransform,hitImageLine,hitImageWord} from '../utils/pageLineFocus';
+import {ComicStory} from './ComicStory';
 import {IllustratedStory} from './IllustratedStory';
 import {ReaderLineFocus} from './ReaderLineFocus';
 
@@ -30,7 +31,7 @@ export function ReaderBook({time=0,playing=false,onSceneSeek,page,facing,hasFaci
   const interaction=(target:LibraryPage,wordList:ImageReadingWord[]|undefined,lineList:ImageReadingLine[],fallback:()=>void)=>({
    onPointerDown:(event:{clientX:number;clientY:number;currentTarget:HTMLButtonElement;target?:EventTarget|null})=>{canceled.current=false;pointer.current={x:event.clientX,y:event.clientY,number:target.number,...hit(event.currentTarget,event.clientX,event.clientY,wordList,lineList,event.target)};},
    onPointerCancel:()=>{pointer.current=null;canceled.current=true;},
-   onClick:(event:{clientX:number;clientY:number;currentTarget:HTMLButtonElement;target?:EventTarget|null;detail:number})=>{const start=pointer.current;pointer.current=null;const physical=Boolean(start)||event.detail>0;if(physical&&(canceled.current||start&&Math.hypot(event.clientX-start.x,event.clientY-start.y)>12))return;if(target.visualMode==='ILLUSTRATED'){fallback();return;}if(physical){const selected=start?.number===target.number?start:hit(event.currentTarget,event.clientX,event.clientY,wordList,lineList,event.target);if(onReadWord&&readerPageImage(target)){onReadWord(selected.word,target);return;}if(selected.line&&onReadLine&&target.number===page.number){onReadLine(selected.line);return;}}if(target.number!==page.number&&onReadWord){onReadWord(null,target);return;}fallback();},
+   onClick:(event:{clientX:number;clientY:number;currentTarget:HTMLButtonElement;target?:EventTarget|null;detail:number})=>{const start=pointer.current;pointer.current=null;const physical=Boolean(start)||event.detail>0;if(physical&&(canceled.current||start&&Math.hypot(event.clientX-start.x,event.clientY-start.y)>12))return;if(['ILLUSTRATED','COMIC'].includes(target.visualMode||'')){fallback();return;}if(physical){const selected=start?.number===target.number?start:hit(event.currentTarget,event.clientX,event.clientY,wordList,lineList,event.target);if(onReadWord&&readerPageImage(target)){onReadWord(selected.word,target);return;}if(selected.line&&onReadLine&&target.number===page.number){onReadLine(selected.line);return;}}if(target.number!==page.number&&onReadWord){onReadWord(null,target);return;}fallback();},
   });
   const stage=useRef<HTMLDivElement>(null),[visibleFraction,setVisibleFraction]=useState(1);
   useLayoutEffect(()=>{const element=stage.current,parent=element?.parentElement;if(!eye||!element||!parent)return;const measure=()=>setVisibleFraction(Math.min(1,parent.clientHeight/Math.max(1,element.clientHeight)));measure();const resize=new ResizeObserver(measure);resize.observe(element);resize.observe(parent);return()=>resize.disconnect();},[eye,single]);
@@ -45,6 +46,7 @@ export function ReaderBook({time=0,playing=false,onSceneSeek,page,facing,hasFaci
     const timer=window.setTimeout(()=>setTurn(null),720);return()=>window.clearTimeout(timer);
   },[right.bookId,right.number,single]);
   useEffect(()=>{previous.current={page:right,facing:left,single};},[right,left,single]);
+  if(page.visualMode==='COMIC'&&page.scenes?.length)return <ComicStory page={page} time={time} playing={playing} onSeek={onSceneSeek}/>;
   if(page.visualMode==='ILLUSTRATED'&&page.scenes?.length)return <IllustratedStory page={page} time={time} playing={playing} onSeek={onSceneSeek}/>;
   return <div ref={stage} className={'rx-book-stage'+(single?' rx-single':'')+(leftActive?' rx-active-left':'')+(eye?' rx-eye-focus':'')} onContextMenu={event=>event.preventDefault()} onDragStart={event=>event.preventDefault()}><div className="rx-book-object" style={eye?{transformOrigin:'0 0',transform:bookFocusTransform(single,focusLine,visibleFraction,leftActive)}:undefined}>
     <div className="rx-book-edge" aria-hidden="true"/><div className="rx-book-spread">

@@ -13,7 +13,7 @@ const schema=require('../../../shared/illustrated-package.cjs');
 export const PACKAGE_CHUNK=8*1024*1024,MAX_PACKAGE=1024*1024*1024;
 export interface PackageAsset{path:string;size:number;sha256:string;id:string;filename:string;mimeType:string;kind:string}
 export interface PackageScene{foreground?:string|null;actorMotion?:string;id:string;start:number;end:number;title:string;kind:string;shot:string;motion:string;effect:string;image:string|null}
-export interface PackagePage{scenes?:PackageScene[];number:number;heading:string;content:string;image:string|null;audio:string|null;audioCues:{time:number;offset:number}[]}
+export interface PackagePage{layout?:'SCENES'|'COMIC';scenes?:PackageScene[];number:number;heading:string;content:string;image:string|null;audio:string|null;audioCues:{time:number;offset:number}[]}
 export interface PackageManifest{format:string;version:number;book:{title:string;author:string;description:string;language:string};pages:PackagePage[];assets:PackageAsset[]}
 export const packageRoot=()=>path.resolve(config.mediaDirectory,'../illustrated-incoming');
 export function packageDirectory(id:string){if(!/^[a-f0-9-]{36}$/.test(id)||!/[a-f0-9]/.test(id))throw new HttpError(400,'شناسهٔ بسته معتبر نیست.');return path.join(packageRoot(),id);}
