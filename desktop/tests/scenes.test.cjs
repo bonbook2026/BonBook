@@ -13,7 +13,7 @@ test('scene switching uses real speech anchors, leaves missing matches unresolve
  const scenes=[{start:0,end:20},{start:20,end:40},{start:40,end:60}],cues=[{time:2,offset:0},{time:14.75,offset:42}];assert.deepEqual(schedule(scenes,cues).map(s=>s.time),[0,null,14.75]);assert.equal(activeScene(scenes,cues,15).start,40);assert.equal(activeScene(scenes,cues,3).start,0);assert.deepEqual(schedule(scenes,[]).map(s=>s.time),[0,null,null]);
 });
 test('a single prepared file respects its page filename while internal markers take precedence',()=>{
- assert.equal(core.importPreparedText('متن آماده برای این صفحه','page-0031.txt')[0].number,31);assert.equal(core.importPreparedText('=== صفحه ۱۸ ===\nمتن','page-0031.txt')[0].number,18);
+ assert.equal(core.importPreparedText('متن آماده برای این صفحه','page-0031.txt')[0].number,31);for(const label of ['صفحه','صفحهٔ','صفحه ی','Page'])assert.equal(core.importPreparedText(`=== ${label} ۱۸ ===\nمتن`,'page-0031.txt')[0].number,18);
 });
 test('scene validation rejects gaps, overlaps, unfinished coverage and injected animation settings',()=>{
  const scenes=planPage(passage);for(const changed of [{...scenes[0],start:1},{...scenes[0],end:scenes[0].end+1},{...scenes[0],motion:'url(https://evil.test)' }])assert.throws(()=>validateScenes([changed,...scenes.slice(1)],passage));assert.throws(()=>validateScenes(scenes.slice(0,-1),passage));assert.ok(planPage('متن '.repeat(9500)).length<=24);
