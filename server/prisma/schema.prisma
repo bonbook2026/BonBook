@@ -182,6 +182,8 @@ model MediaAsset {
   sourcePages LibraryPage[] @relation("PageSource")
   imports     BookImport[]
   alignments  AudioAlignment[]
+  sceneImages IllustratedScene[] @relation("SceneImage")
+  sceneForegrounds IllustratedScene[] @relation("SceneForeground")
 
   @@map("media_assets")
 }
@@ -258,9 +260,34 @@ model LibraryPage {
   updatedAt        DateTime    @updatedAt @map("updated_at")
   book             LibraryBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
   alignments       AudioAlignment[]
+  illustratedScenes IllustratedScene[]
 
   @@unique([bookId, number])
   @@map("library_pages")
+}
+
+model IllustratedScene {
+  id String @id
+  pageId Int @map("page_id")
+  page LibraryPage @relation(fields:[pageId],references:[id],onDelete:Cascade)
+  position Int
+  start Int
+  end Int
+  title String
+  kind String
+  shot String
+  motion String
+  effect String
+  actorMotion String @default("breathe") @map("actor_motion")
+  contentHash String @map("content_hash")
+  imageAssetId String? @map("image_asset_id")
+  image MediaAsset? @relation("SceneImage",fields:[imageAssetId],references:[id],onDelete:SetNull)
+  foregroundAssetId String? @map("foreground_asset_id")
+  foreground MediaAsset? @relation("SceneForeground",fields:[foregroundAssetId],references:[id],onDelete:SetNull)
+  @@unique([pageId,position])
+  @@index([imageAssetId])
+  @@index([foregroundAssetId])
+  @@map("illustrated_scenes")
 }
 
 model AudioBatch {

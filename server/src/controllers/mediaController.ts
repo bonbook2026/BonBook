@@ -33,17 +33,19 @@ async function accessibleMedia(req:Request){
     const id = String(req.params.id);
     if (!/^[0-9a-f-]{36}$/.test(id)) throw new HttpError(404, 'فایل پیدا نشد.');
     const media = await prisma.mediaAsset.findUnique({ where: { id }, include: {
+      sceneForegrounds:{where:{page:{book:{status:'PUBLISHED'}}},select:{id:true},take:1},
+      sceneImages:{where:{page:{book:{status:'PUBLISHED'}}},select:{id:true},take:1},
       covers: { where: { status: 'PUBLISHED' }, select: { id: true }, take: 1 },
       audioPages: { where: { book: { status: 'PUBLISHED' } }, select: { id: true }, take: 1 },
       pageImages:{where:{book:{status:'PUBLISHED'}},select:{id:true},take:1},
       sourcePages:{where:{book:{status:'PUBLISHED'}},select:{id:true},take:1},
     } });
     if (!media) throw new HttpError(404, 'فایل پیدا نشد.');
-    const published = Boolean(media.covers.length || media.audioPages.length || media.sourcePages.length||media.pageImages.length||await isPublicHeroMedia(id));
+    const published = Boolean(media.covers.length || media.audioPages.length || media.sourcePages.length||media.pageImages.length||media.sceneImages?.length||media.sceneForegrounds?.length||await isPublicHeroMedia(id));
     if (!published) {
       if (!await requestIsAdmin(req)) throw new HttpError(404, 'فایل پیدا نشد.');
     }
-    return {media,published,protectedMedia:Boolean(media.kind==='audio'||media.audioPages.length||media.pageImages.length||media.sourcePages.length)};
+    return {media,published,protectedMedia:Boolean(media.kind==='audio'||media.kind==='page-image'||media.sceneImages?.length||media.sceneForegrounds?.length||media.audioPages.length||media.pageImages.length||media.sourcePages.length)};
 }
 async function mediaIdentity(req:Request,id:string){
  if(req.get('sec-fetch-site')==='cross-site'){await securityEvent('CROSS_SITE_CONTENT',null,id);throw new HttpError(403,'دریافت محتوا از سایت دیگر مجاز نیست.');}

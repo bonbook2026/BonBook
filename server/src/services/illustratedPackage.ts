@@ -12,7 +12,8 @@ import {detectMedia} from './mediaService';
 const schema=require('../../../shared/illustrated-package.cjs');
 export const PACKAGE_CHUNK=8*1024*1024,MAX_PACKAGE=1024*1024*1024;
 export interface PackageAsset{path:string;size:number;sha256:string;id:string;filename:string;mimeType:string;kind:string}
-export interface PackagePage{number:number;heading:string;content:string;image:string|null;audio:string|null;audioCues:{time:number;offset:number}[]}
+export interface PackageScene{foreground?:string|null;actorMotion?:string;id:string;start:number;end:number;title:string;kind:string;shot:string;motion:string;effect:string;image:string|null}
+export interface PackagePage{scenes?:PackageScene[];number:number;heading:string;content:string;image:string|null;audio:string|null;audioCues:{time:number;offset:number}[]}
 export interface PackageManifest{format:string;version:number;book:{title:string;author:string;description:string;language:string};pages:PackagePage[];assets:PackageAsset[]}
 export const packageRoot=()=>path.resolve(config.mediaDirectory,'../illustrated-incoming');
 export function packageDirectory(id:string){if(!/^[a-f0-9-]{36}$/.test(id)||!/[a-f0-9]/.test(id))throw new HttpError(400,'شناسهٔ بسته معتبر نیست.');return path.join(packageRoot(),id);}
@@ -23,7 +24,7 @@ export async function receivedChunks(id:string,size:number){const directory=pack
 async function zipFile(file:string){return new Promise<yauzl.ZipFile>((resolve,reject)=>yauzl.open(file,{lazyEntries:true,autoClose:false,validateEntrySizes:true},(error,zip)=>error||!zip?reject(new HttpError(400,'ساختار ZIP معتبر نیست.')):resolve(zip)));}
 async function entries(zip:yauzl.ZipFile){return new Promise<Map<string,yauzl.Entry>>((resolve,reject)=>{const result=new Map<string,yauzl.Entry>();let size=0,count=0;const fail=(error:Error)=>{zip.close();reject(error);};zip.once('error',fail);zip.once('end',()=>resolve(result));zip.on('entry',(entry:yauzl.Entry)=>{
  const directory=/^(images|audio)\/$/.test(entry.fileName),valid=entry.fileName==='manifest.json'||schema.assetPath(entry.fileName)||directory;
- if(!valid||result.has(entry.fileName)||++count>4003||(entry.generalPurposeBitFlag&1)||((entry.externalFileAttributes>>>16)&0o170000)===0o120000||entry.uncompressedSize>(entry.fileName==='manifest.json'?8*1024*1024:30*1024*1024)||(size+=entry.uncompressedSize)>2*MAX_PACKAGE){fail(new HttpError(400,'مسیر، تعداد یا حجم داخلی ZIP معتبر نیست.'));return;}
+ if(!valid||result.has(entry.fileName)||++count>10003||(entry.generalPurposeBitFlag&1)||((entry.externalFileAttributes>>>16)&0o170000)===0o120000||entry.uncompressedSize>(entry.fileName==='manifest.json'?8*1024*1024:30*1024*1024)||(size+=entry.uncompressedSize)>2*MAX_PACKAGE){fail(new HttpError(400,'مسیر، تعداد یا حجم داخلی ZIP معتبر نیست.'));return;}
  if(!directory)result.set(entry.fileName,entry);zip.readEntry();});zip.readEntry();});}
 async function stream(zip:yauzl.ZipFile,entry:yauzl.Entry){return new Promise<NodeJS.ReadableStream>((resolve,reject)=>zip.openReadStream(entry,(error,s)=>error||!s?reject(new HttpError(400,'خواندن فایل داخلی ZIP انجام نشد.')):resolve(s)));}
 async function readEntry(zip:yauzl.ZipFile,entry:yauzl.Entry,max:number){const chunks:Buffer[]=[];let size=0;for await(const raw of await stream(zip,entry) as any){const chunk=Buffer.from(raw);size+=chunk.length;if(size>max)throw new HttpError(400,'فهرست بسته بیش از حد بزرگ است.');chunks.push(chunk);}return Buffer.concat(chunks);}

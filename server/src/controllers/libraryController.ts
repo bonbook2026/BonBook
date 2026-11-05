@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
+import {contentHash} from '../services/speechService';
 import { HttpError } from '../lib/httpError';
 import { AuthRequest } from '../middleware/auth';
 import { rankPages, queryTerms } from '../services/searchService';
@@ -19,6 +20,7 @@ export function bookJson(book: any) {
 }
 export function pageJson(page: any,includeOriginal=false) {
   return { id: page.id, bookId: page.bookId, number: page.number, heading: page.heading,
+    scenes:(page.illustratedScenes||[]).filter((s:any)=>s.contentHash===contentHash(page.content)).map((s:any)=>({id:s.id,start:s.start,end:s.end,title:s.title,kind:s.kind,shot:s.shot,motion:s.motion,effect:s.effect,actorMotion:s.actorMotion,foregroundUrl:s.foregroundAssetId?`/api/media/${s.foregroundAssetId}`:null,imageUrl:s.imageAssetId?`/api/media/${s.imageAssetId}`:null})),
     content: page.content, keywords: page.keywords, audioAssetId: page.audioAssetId,audioCues:JSON.parse(page.audioCues||'[]'),audioCueMode:page.audioCueMode||'NONE',
     sourceUrl:includeOriginal&&page.sourceAssetId?`/api/media/${page.sourceAssetId}`:null,sourcePageNumber:page.sourcePageNumber||null,sourceMimeType:page.source?.mimeType||null,
     imageAssetId:page.imageAssetId||null,imageUrl:page.imageAssetId?`/api/media/${page.imageAssetId}`:null,visualMode:page.visualMode||'AUTO',
@@ -27,7 +29,7 @@ export function pageJson(page: any,includeOriginal=false) {
 }
 export function protectedPageJson(page:any,identity:ContentIdentity){
  const result=pageJson(page,isAdministrator(identity));
- return {...result,audioUrl:result.audioUrl?signedMediaUrl(result.audioUrl,identity,true):null,imageUrl:result.imageUrl?signedMediaUrl(result.imageUrl,identity):null,sourceImageUrl:result.sourceImageUrl?signedMediaUrl(result.sourceImageUrl,identity):null,protection:{watermark:identity.watermark}};
+ return {...result,scenes:result.scenes.map((s:any)=>({...s,foregroundUrl:s.foregroundUrl?signedMediaUrl(s.foregroundUrl,identity):null,imageUrl:s.imageUrl?signedMediaUrl(s.imageUrl,identity):null})),audioUrl:result.audioUrl?signedMediaUrl(result.audioUrl,identity,true):null,imageUrl:result.imageUrl?signedMediaUrl(result.imageUrl,identity):null,sourceImageUrl:result.sourceImageUrl?signedMediaUrl(result.sourceImageUrl,identity):null,protection:{watermark:identity.watermark}};
 }
 export const positiveId = (value: unknown) => {
   const id = Number(value);
@@ -52,7 +54,7 @@ export async function getLibraryBook(req: Request, res: Response, next: NextFunc
 }
 export async function getLibraryPage(req: Request, res: Response, next: NextFunction) {
   try {
-    const page = await prisma.libraryPage.findFirst({ where: { bookId: positiveId(req.params.id), number: positiveId(req.params.page), book: { status: 'PUBLISHED' } },include:{source:{select:{mimeType:true}}} });
+    const page = await prisma.libraryPage.findFirst({ where: { bookId: positiveId(req.params.id), number: positiveId(req.params.page), book: { status: 'PUBLISHED' } },include:{source:{select:{mimeType:true}},illustratedScenes:{orderBy:{position:'asc'}}} });
     if (!page) throw new HttpError(404, 'صفحه در دسترس نیست.');
     res.json({ page: protectedPageJson(page,await contentIdentity(req)) });
   } catch (error) { next(error); }

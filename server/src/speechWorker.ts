@@ -17,13 +17,13 @@ async function run(){
   if(await processNextSmartReview(()=>stopping))continue;
   const waiting=await prisma.audioAlignment.findMany({where:{status:'QUEUED'},orderBy:[{createdAt:'asc'},{id:'asc'}],select:{id:true,page:{select:{bookId:true}}}});
   const next=fairSpeechOrder(waiting.map(job=>({id:job.id,bookId:job.page.bookId})),state.lastBookId)[0];
-  const job=next?await prisma.audioAlignment.findUnique({where:{id:next.id},include:{audio:true,page:{include:{book:true}}}}):null;
+  const job=next?await prisma.audioAlignment.findUnique({where:{id:next.id},include:{audio:true,page:{include:{book:true,illustratedScenes:{orderBy:{position:"asc"}}}}}}):null;
   if(!job){await new Promise(resolve=>setTimeout(resolve,2000));continue;}
   if(!(await prisma.audioAlignment.updateMany({where:{id:job.id,status:'QUEUED'},data:{status:'PROCESSING',error:null,progress:0,attempts:{increment:1}}})).count)continue;
   activeJob=job.id;
   state.lastBookId=job.page.bookId;state.active={id:job.id,bookId:job.page.bookId,pageNumber:job.page.number,progress:0,startedAt:Date.now()};await publish();
   console.log('BonBook speech alignment started:',job.id,'book',job.page.bookId,'page',job.page.number);
-  const canceled=async()=>{if(stopping)return true;const latest=await prisma.audioAlignment.findUnique({where:{id:job.id},include:{page:{include:{book:true}}}});return !latest||latest.status==='CANCELED'||latest.page.book.status==='TRASH'||latest.page.audioAssetId!==job.audioAssetId||contentHash(latest.page.content)!==job.contentHash;};
+  const canceled=async()=>{if(stopping)return true;const latest=await prisma.audioAlignment.findUnique({where:{id:job.id},include:{page:{include:{book:true,illustratedScenes:{orderBy:{position:"asc"}}}}}});return !latest||latest.status==='CANCELED'||latest.page.book.status==='TRASH'||latest.page.audioAssetId!==job.audioAssetId||contentHash(latest.page.content)!==job.contentHash;};
   try{
    if(await canceled()){await prisma.audioAlignment.updateMany({where:{id:job.id},data:{status:'CANCELED',warning:'متن یا ویس تغییر کرده است.'}});continue;}
    const result=await recognizeSpeech(job,async progress=>{await prisma.audioAlignment.updateMany({where:{id:job.id,status:'PROCESSING'},data:{progress}});if(state.active?.id===job.id)state.active.progress=progress;await publish();},canceled);

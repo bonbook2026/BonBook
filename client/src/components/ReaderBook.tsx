@@ -4,10 +4,11 @@ import {mediaUrl} from '../services/api';
 import {ReaderAccountStamp} from './ReaderProtection';
 import {ReaderPageCanvas} from './ReaderPageCanvas';
 import {ImageReadingLine,ImageReadingWord,bookFocusTransform,hitImageLine,hitImageWord} from '../utils/pageLineFocus';
+import {IllustratedStory} from './IllustratedStory';
 import {ReaderLineFocus} from './ReaderLineFocus';
 
 export function readerPageImage(page:LibraryPage){
-  return page.visualMode==='TEXT'?null:mediaUrl(page.imageUrl||page.sourceImageUrl||null);
+  return page.visualMode==='TEXT'?null:mediaUrl(page.imageUrl||page.sourceImageUrl||page.scenes?.find(s=>s.imageUrl)?.imageUrl||null);
 }
 
 export function ReaderSheet({page,title,large=false,line=null,word=null,wordMode=false,targets}:{page:LibraryPage;title:string;large?:boolean;line?:ImageReadingLine|null;word?:ImageReadingWord|null;wordMode?:boolean;targets?:ImageReadingWord[]}){
@@ -21,8 +22,8 @@ export function ReaderSheet({page,title,large=false,line=null,word=null,wordMode
     </div>;
 }
 
-interface SpreadProps{page:LibraryPage;facing:LibraryPage|null;hasFacing:boolean;title:string;single:boolean;activeOnLeft?:boolean;onZoom:()=>void;onFacing:()=>void;zoomLabel?:string;focusLine?:ImageReadingLine|null;eye?:boolean;lines?:ImageReadingLine[];onReadLine?:(line:ImageReadingLine)=>void;focusWord?:ImageReadingWord|null;words?:ImageReadingWord[];facingWords?:ImageReadingWord[];facingLines?:ImageReadingLine[];onReadWord?:(word:ImageReadingWord|null,page:LibraryPage)=>void}
-export function ReaderBook({page,facing,hasFacing,title,single,activeOnLeft=false,onZoom,onFacing,zoomLabel='بزرگ‌نمایی صفحهٔ جاری',focusLine=null,eye=false,lines=[],onReadLine,focusWord=null,words,facingWords,facingLines=[],onReadWord}:SpreadProps){
+interface SpreadProps{time?:number;playing?:boolean;onSceneSeek?:(time:number)=>void;page:LibraryPage;facing:LibraryPage|null;hasFacing:boolean;title:string;single:boolean;activeOnLeft?:boolean;onZoom:()=>void;onFacing:()=>void;zoomLabel?:string;focusLine?:ImageReadingLine|null;eye?:boolean;lines?:ImageReadingLine[];onReadLine?:(line:ImageReadingLine)=>void;focusWord?:ImageReadingWord|null;words?:ImageReadingWord[];facingWords?:ImageReadingWord[];facingLines?:ImageReadingLine[];onReadWord?:(word:ImageReadingWord|null,page:LibraryPage)=>void}
+export function ReaderBook({time=0,playing=false,onSceneSeek,page,facing,hasFacing,title,single,activeOnLeft=false,onZoom,onFacing,zoomLabel='بزرگ‌نمایی صفحهٔ جاری',focusLine=null,eye=false,lines=[],onReadLine,focusWord=null,words,facingWords,facingLines=[],onReadWord}:SpreadProps){
   const pointer=useRef<{x:number;y:number;word:ImageReadingWord|null;line:ImageReadingLine|null;number:number}|null>(null);
   const canceled=useRef(false),leftActive=activeOnLeft&&!single;
   const hit=(element:HTMLButtonElement,x:number,y:number,wordList:ImageReadingWord[]|undefined,lineList:ImageReadingLine[],target?:EventTarget|null)=>{const printed=(target as Element|null)?.closest?.('[data-reader-word-start]'),direct=printed&&wordList?.find(word=>String(word.start)===printed.getAttribute('data-reader-word-start')&&String(word.end)===printed.getAttribute('data-reader-word-end'));if(direct)return {word:direct,line:lineList.find(line=>line.start===direct.lineStart)||null};const canvas=element.querySelector<HTMLCanvasElement>('.reader-page-canvas');if(!canvas||canvas.width<2)return {word:null,line:null};const box=canvas.getBoundingClientRect(),scale=Math.min(box.width/canvas.width,box.height/canvas.height),width=canvas.width*scale,height=canvas.height*scale,u=(x-box.left-(box.width-width)/2)/width,v=(y-box.top-(box.height-height)/2)/height;return {word:wordList?hitImageWord(wordList,u,v):null,line:hitImageLine(lineList,u,v)};};
@@ -44,6 +45,7 @@ export function ReaderBook({page,facing,hasFacing,title,single,activeOnLeft=fals
     const timer=window.setTimeout(()=>setTurn(null),720);return()=>window.clearTimeout(timer);
   },[right.bookId,right.number,single]);
   useEffect(()=>{previous.current={page:right,facing:left,single};},[right,left,single]);
+  if(page.visualMode==='ILLUSTRATED'&&page.scenes?.length)return <IllustratedStory page={page} time={time} playing={playing} onSeek={onSceneSeek}/>;
   return <div ref={stage} className={'rx-book-stage'+(single?' rx-single':'')+(leftActive?' rx-active-left':'')+(eye?' rx-eye-focus':'')} onContextMenu={event=>event.preventDefault()} onDragStart={event=>event.preventDefault()}><div className="rx-book-object" style={eye?{transformOrigin:'0 0',transform:bookFocusTransform(single,focusLine,visibleFraction,leftActive)}:undefined}>
     <div className="rx-book-edge" aria-hidden="true"/><div className="rx-book-spread">
       <button type="button" className="rx-paper-page rx-current-page" data-page-number={page.number} aria-label={zoomLabel} title={page.visualMode==='ILLUSTRATED'?zoomLabel:onReadWord?'هر کلمه را لمس کن تا روایت از همان کلمه پخش شود':lines.length?'هر خط را لمس کن تا روایت از همان‌جا پخش شود':undefined} {...interaction(page,words,lines,onZoom)}><ReaderSheet page={page} title={title} line={focusLine} word={focusWord} wordMode={Boolean(words?.some(word=>word.time!==undefined&&word.endTime!==undefined))} targets={words}/><span className="rx-paper-sheen"/></button>

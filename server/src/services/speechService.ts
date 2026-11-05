@@ -25,6 +25,12 @@ export function readingLines(text:string){
  }
  return meaningful;
 }
+export function sceneReadingLines(page:{content:string;illustratedScenes?:{start:number;end:number;contentHash:string}[]}){
+ const scenes=(page.illustratedScenes||[]).filter(s=>s.contentHash===contentHash(page.content));
+ if(!scenes.length)return readingLines(page.content);
+ const cuts=[...new Set([0,...scenes.flatMap(s=>[s.start,s.end]),page.content.length])].sort((a,b)=>a-b);
+ return cuts.slice(0,-1).flatMap((start,i)=>readingLines(page.content.slice(start,cuts[i+1])).map(line=>({...line,start:line.start+start,end:line.end+start})));
+}
 export async function queueAlignment(tx:any,page:any,userId:number){
  if(!page.audioAssetId||!page.content.trim())throw new HttpError(400,'ابتدا متن و ویس این صفحه را ذخیره کنید.');
  const hash=contentHash(page.content),existing=await tx.audioAlignment.findFirst({where:{pageId:page.id,audioAssetId:page.audioAssetId,contentHash:hash,status:{in:['QUEUED','PROCESSING','READY','REVIEW','APPLIED']}},orderBy:{createdAt:'desc'}});
@@ -47,7 +53,7 @@ export async function recognizeSpeech(job:any,onProgress:(progress:number)=>Prom
  const files=speechPaths(),temporary=await fs.mkdtemp(path.join(os.tmpdir(),'bonbook-speech-')),input=path.join(temporary,'request.json'),output=path.join(temporary,'result.json');
  try{
   const recognized=await reusableSpeech(job);
-  await fs.writeFile(input,JSON.stringify({audio:path.join(config.mediaDirectory,job.audio.filename),model:files.model,output,text:job.page.content,lines:readingLines(job.page.content),language:job.page.book.language.startsWith('en')?'en':job.page.book.language.startsWith('ar')?'ar':'fa',...(recognized?{recognized}: {})}),{mode:0o600});
+  await fs.writeFile(input,JSON.stringify({audio:path.join(config.mediaDirectory,job.audio.filename),model:files.model,output,text:job.page.content,lines:sceneReadingLines(job.page),language:job.page.book.language.startsWith('en')?'en':job.page.book.language.startsWith('ar')?'ar':'fa',...(recognized?{recognized}: {})}),{mode:0o600});
   if(recognized)console.log('BonBook speech alignment reusing recording:',job.id);
   await new Promise<void>((resolve,reject)=>{
    const child=spawn(files.python,[files.script,input],{env:{...process.env,HF_HUB_OFFLINE:'1',OMP_NUM_THREADS:'2'},stdio:['ignore','pipe','pipe']});let buffer='',error='',last=0,settled=false;

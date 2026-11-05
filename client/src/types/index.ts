@@ -52,7 +52,9 @@ export interface LibraryBook {
   contents?:ContentsEntry[];
 }
 export interface ContentsEntry{title:string;pageNumber:number;level:number}
+export interface IllustrationScene{foregroundUrl?:string|null;actorMotion?:string;id:string;start:number;end:number;title:string;kind:string;shot:string;motion:string;effect:string;imageUrl:string|null}
 export interface LibraryPage {
+  scenes?:IllustrationScene[];
   protection?:{watermark:string};
   id: number; bookId: number; number: number; heading: string; content: string; keywords: string;
   audioAssetId: string | null; audioUrl: string | null; updatedAt: string;

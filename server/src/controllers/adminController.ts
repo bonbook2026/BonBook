@@ -76,7 +76,7 @@ export async function savePage(req: AuthRequest, res: Response, next: NextFuncti
     if (number > 100_000) throw new HttpError(400, 'شمارهٔ صفحه معتبر نیست.');
     const book=await prisma.libraryBook.findUnique({where:{id:bookId}});
     if(!book||book.status==='TRASH')throw new HttpError(404,'کتاب در دسترس نیست.');
-    if(req.method==='GET'){const page=await prisma.libraryPage.findUnique({where:{bookId_number:{bookId,number}},include:{source:{select:{mimeType:true}}}});if(!page)throw new HttpError(404,'صفحه پیدا نشد.');res.json({page:pageJson(page,true)});return;}
+    if(req.method==='GET'){const page=await prisma.libraryPage.findUnique({where:{bookId_number:{bookId,number}},include:{source:{select:{mimeType:true}},illustratedScenes:{orderBy:{position:'asc'}}}});if(!page)throw new HttpError(404,'صفحه پیدا نشد.');res.json({page:pageJson(page,true)});return;}
     if (req.method === 'DELETE') {
       await prisma.libraryPage.deleteMany({ where: { bookId, number } });
       await prisma.bookContents.deleteMany({where:{bookId,pageNumber:number}});
@@ -95,7 +95,7 @@ export async function savePage(req: AuthRequest, res: Response, next: NextFuncti
     const same=existing?.content===content&&existing.audioAssetId===audioAssetId&&existing.audioCues===audioCues;
     const sameBeforeFilter=existing?.content===rawContent&&existing.audioAssetId===audioAssetId&&existing.audioCues===rawCues;
     const data = { heading, content, keywords, audioAssetId,audioCues,imageAssetId,visualMode,audioCueMode:filtered.approximate?'PARTIAL':same||sameBeforeFilter?existing!.audioCueMode:audioCues==='[]'?'NONE':'MANUAL',searchText: normalizePersian(heading + ' ' + keywords + ' ' + content) };
-    const page = await prisma.libraryPage.upsert({ where: { bookId_number: { bookId, number } }, create: { bookId, number, ...data }, update: data,include:{source:{select:{mimeType:true}}} });
+    const page = await prisma.libraryPage.upsert({ where: { bookId_number: { bookId, number } }, create: { bookId, number, ...data }, update: data,include:{source:{select:{mimeType:true}},illustratedScenes:{orderBy:{position:'asc'}}} });
     if(existing&&(existing.content!==content||existing.audioAssetId!==audioAssetId))await prisma.audioAlignment.updateMany({where:{pageId:page.id,status:{in:['QUEUED','PROCESSING']}},data:{status:'CANCELED',warning:'متن یا ویس صفحه تغییر کرد.'}});
     await prisma.libraryBook.update({ where: { id: bookId }, data: { updatedAt: new Date() } });
     res.json({ page: pageJson(page,true) });
