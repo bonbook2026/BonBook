@@ -10,17 +10,24 @@ function targetFor(project,task){const page=project.pages.find(p=>p.number===tas
 function imageKey(url){try{const u=new URL(url);return u.protocol==='blob:'?url:u.origin+u.pathname+'?id='+(u.searchParams.get('id')||u.searchParams.get('file_id')||'');}catch{return url;}}
 
 class ImageWorkflow{
- constructor(deps){this.deps=deps;this.status='idle';this.tasks=[];this.done=0;this.flight=null;this.running=null;this.message='';this.projectId=null;}
+ constructor(deps){this.deps=deps;this.status='idle';this.tasks=[];this.done=0;this.flight=null;this.running=null;this.message='';this.projectId=null;this.retries=0;}
  state(){return {status:this.status,total:this.total||0,done:this.done,current:this.tasks[0]||null,message:this.message,elapsed:this.flight?Math.floor((Date.now()-this.flight.started)/1000):0};}
  tell(message){this.message=message;this.deps.notify(this.state());}
  start(project,scope){
   if(this.running||this.status==='paused')throw Error('صف قبلی را ادامه بده یا پایان بده.');
-  this.tasks=pendingTasks(project,scope);this.total=this.tasks.length;this.done=0;this.projectId=project.id;this.flight=null;this.status=this.tasks.length?'running':'complete';this.tell(this.tasks.length?'تصویرسازی خودکار شروع شد.':'همهٔ تصویرهای این محدوده قبلاً آماده‌اند.');return this.launch();
+  this.tasks=pendingTasks(project,scope);this.total=this.tasks.length;this.done=0;this.projectId=project.id;this.flight=null;this.retries=0;this.status=this.tasks.length?'running':'complete';this.tell(this.tasks.length?'تصویرسازی خودکار شروع شد.':'همهٔ تصویرهای این محدوده قبلاً آماده‌اند.');return this.launch();
  }
- resume(){if(this.status!=='paused'||this.running)throw Error('صف هنوز در حال توقف است؛ کمی بعد ادامه را بزن.');if(this.flight)this.flight.started=Date.now();this.status='running';this.tell('ادامهٔ صف تصویرسازی');return this.launch();}
+ resume(){if(this.status!=='paused'||this.running)throw Error('صف هنوز در حال توقف است؛ کمی بعد ادامه را بزن.');if(this.flight)this.flight.started=Date.now();this.retries=0;this.status='running';this.tell('ادامهٔ صف تصویرسازی');return this.launch();}
  pause(){if(this.status==='running'){this.status='paused';this.tell('صف متوقف شد؛ تصاویر آماده و درخواستِ در حال ساخت حفظ می‌شوند.');}}
  stop(){this.pause();if(this.running)throw Error('ابتدا صبر کن توقف کامل شود، سپس پایان صف را بزن.');this.status='idle';this.tasks=[];this.flight=null;this.tell('صف پایان یافت؛ تصویرهای ذخیره‌شده حفظ شدند.');}
- launch(){this.running=this.run().catch(error=>{this.status='paused';this.tell(error.message||'تصویرسازی متوقف شد.');}).finally(()=>{this.running=null;this.deps.notify(this.state());});return this.running;}
+ launch(){this.running=this.runWithRetries().catch(error=>{this.status='paused';this.tell(error.message||'تصویرسازی متوقف شد.');}).finally(()=>{this.running=null;this.deps.notify(this.state());});return this.running;}
+ async runWithRetries(){
+  while(this.status==='running')try{return await this.run();}catch(error){
+   const transient=/network|connection|fetch|ERR_(?:INTERNET|NETWORK|CONNECTION|TIMED|NAME)|دانلود|دریافت تصویر|کادر نوشتن چت پیدا نشد|دکمهٔ ارسال چت هنوز آماده|قرارگرفتن دستور در چت تأیید نشد|نتیجهٔ ارسال هنوز مشخص|Send not ready|Result uncertain/i.test(error.message||'');
+   if(this.status!=='running'||!transient||this.retries>=2)throw error;
+   this.retries++;this.tell(`اتصال موقتاً کامل نشد؛ تلاش خودکار ${this.retries.toLocaleString('fa-IR')} از ۲. درخواستِ ارسال‌شده دوباره فرستاده نمی‌شود.`);await this.deps.delay(1000*2**(this.retries-1));
+  }
+ }
  checked(){const p=this.deps.project();if(!p||p.id!==this.projectId)throw Error('پروژه عوض شده است؛ صف به کتاب دیگری متصل نشد.');return p;}
  async run(){
   while(this.status==='running'&&this.tasks.length){
@@ -48,7 +55,7 @@ class ImageWorkflow{
    if(this.status!=='running')return;
    this.tell('تصویر ساخته شد؛ در حال دریافت و ذخیره در کادر درست…');
    await this.deps.download(this.flight.candidate,task,this.projectId);
-   this.tasks.shift();this.done++;this.flight=null;
+   this.tasks.shift();this.done++;this.flight=null;this.retries=0;
    this.tell(`${this.done.toLocaleString('fa-IR')} از ${this.total.toLocaleString('fa-IR')} تصویر ذخیره شد.`);
   }
   if(this.status==='running'){this.status='complete';this.tell('تصویرسازی این محدوده کامل شد؛ تصویرها روی همین دستگاه ذخیره شدند.');}
