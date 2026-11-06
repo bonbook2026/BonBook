@@ -51,7 +51,7 @@ function render(s){const changed=current?.project?.id!==s.project?.id;current=s;
  const scenes=page.scenes||[];$('scene-count').textContent=`${fa(scenes.length)} پلان برای این صفحه`;$('scene-list').replaceChildren(...scenes.map((scene,i)=>{const b=document.createElement('button');b.type='button';b.dataset.id=scene.id;b.textContent=`${fa(i+1)}. ${scene.title}`;b.title=page.content.slice(scene.start,scene.end);b.disabled=s.busy;b.addEventListener('click',()=>selectScene(scene.id));return b;}));const selected=scenes.find(s=>s.id===page.selectedScene)||scenes[0];scenePreview(page,selected);renderComic(page,selected);$('scene-select').replaceChildren(...scenes.map((scene,i)=>{const o=document.createElement('option');o.value=scene.id;o.textContent=`${fa(i+1)}. ${scene.title}`;return o;}));$('scene-select').value=selected?.id||'';$('text-step-status').textContent=`${fa(p.pages.filter(x=>x.content.trim()).length)} از ${fa(p.pages.length)} صفحه متن دارد`;$('audio-step-status').textContent=`${fa(p.pages.filter(x=>x.audio).length)} از ${fa(p.pages.length)} صفحه ویس دارد`;
  document.querySelector('.scene-settings').hidden=!scenes.length;document.querySelector('.layer-tools').hidden=!selected?.layered;$('prepare-page').disabled=s.busy||!scenes.length;$('attach-image').textContent=scenes.length?'تصویر همین پلان':'تصویر این صفحه';
  const audio=$('page-audio');audio.hidden=!page.audioUrl;if(page.audioUrl&&audio.getAttribute('src')!==page.audioUrl){audio.src=page.audioUrl;audio.load();}if(!page.audioUrl){audio.pause();audio.removeAttribute('src');}
- $('armed').hidden=!s.armed;$('armed-label').textContent=s.armed?`دانلود بعدی ← صفحهٔ ${fa(s.armed.number)}، پلان ${fa((p.pages.find(p=>p.number===s.armed.number)?.scenes||[]).findIndex(s=>s.id===current.armed.sceneId)+1)}${s.armed.asset==='foreground'?' · شخصیت شفاف':' · تصویر اصلی'}`:'';
+ $('armed').hidden=!s.armed;$('armed-label').textContent=s.armed?.asset==='sheet'?'دانلود بعدی ← تمام پلان‌های صفحهٔ '+fa(s.armed.number):s.armed?`دانلود بعدی ← صفحهٔ ${fa(s.armed.number)}، پلان ${fa((p.pages.find(p=>p.number===s.armed.number)?.scenes||[]).findIndex(s=>s.id===current.armed.sceneId)+1)}${s.armed.asset==='foreground'?' · شخصیت شفاف':' · تصویر اصلی'}`:'';
  renderWorkflow(s);
 }
 window.studio.onState(render);call('state');
@@ -76,7 +76,7 @@ $('export').addEventListener('click',async()=>{const saved=await call('update-bo
 
 function renderWorkflow(s){
  const flow=s.workflow||{status:'idle'},running=flow.status==='running',paused=flow.status==='paused';
- for(const id of ['start-book-workflow','start-image-workflow','start-page-workflow']){$(id).hidden=running||paused;$(id).disabled=s.busy||!s.project;}
+ $('image-mode').value=s.project?.imageMode||'scenes';const pageMode=$('image-mode').value==='sheet',pages=s.project?.pages||[],sceneCount=pages.reduce((n,p)=>n+(p.scenes||[]).reduce((m,x)=>m+Number(!x.image)+Number(x.layered&&!x.foreground),0),0),pageCount=pages.filter(p=>p.scenes?.some(x=>!x.image)).length;$('image-mode-estimate').textContent='باقی‌ماندهٔ کل کتاب: '+fa(sceneCount)+' تصویر در روش پلان‌به‌پلان · '+fa(pageCount)+' تصویر در روش صفحه‌به‌صفحه';$('image-mode-help').textContent=pageMode?'یک درخواست برای تمام پلان‌های هر صفحه؛ کادرها خودکار جدا می‌شوند و متن فارسی و ویس قبلی حفظ می‌شود. این روش برای کمیک بدون لایهٔ شخصیت جدا است.':'روش فعلی: هر پلان و لایهٔ جدا، یک تصویر می‌گیرد. دکمهٔ «ساخت همین کادر» همیشه از همین روش استفاده می‌کند.';$('start-page-workflow').textContent=pageMode?'ساخت تمام پلان‌های همین صفحه با یک تصویر':'ساخت پلان‌به‌پلان همین صفحه';for(const id of ['start-book-workflow','start-image-workflow','start-page-workflow']){$(id).hidden=running||paused;$(id).disabled=s.busy||!s.project;}
  $('pause-image-workflow').hidden=!running;$('pause-image-workflow').disabled=false;
  $('resume-image-workflow').hidden=!paused;$('resume-image-workflow').disabled=s.busy;
  $('stop-image-workflow').hidden=!paused;$('stop-image-workflow').disabled=s.busy;
@@ -85,9 +85,13 @@ function renderWorkflow(s){
  for(const e of document.querySelectorAll('#workspace input,#workspace textarea,#workspace select'))e.disabled=running||s.busy;
  if(running)for(const b of document.querySelectorAll('button'))if(!['pause-image-workflow','browser-toggle'].includes(b.id))b.disabled=true;
 }
-for(const [id,scope]of [['start-book-workflow','book'],['start-image-workflow','scene'],['start-page-workflow','page']])$(id).addEventListener('click',async()=>{if(await flushDraft())await call('workflow-start',{scope});});
+for(const [id,scope]of [['start-book-workflow','book'],['start-image-workflow','scene'],['start-page-workflow','page']])$(id).addEventListener('click',async()=>{if(await flushDraft())await call('workflow-start',{scope,mode:scope==='scene'?'scenes':$('image-mode').value});});
 $('pause-image-workflow').addEventListener('click',()=>call('workflow-pause'));
 $('resume-image-workflow').addEventListener('click',()=>call('workflow-resume'));
 $('stop-image-workflow').addEventListener('click',()=>call('workflow-stop'));
 
 $('link-image-chat').addEventListener('click',async()=>{if(await flushDraft())await call('workflow-link-chat');});
+
+$('image-mode').addEventListener('change',async()=>{const mode=$('image-mode').value;if(await flushDraft())await call('image-mode',{mode});else render(current);});
+$('prepare-comic-page').addEventListener('click',async()=>{if(await flushDraft())await call('prepare-comic-page');});
+$('attach-comic-page').addEventListener('click',async()=>{if(await flushDraft())await call('attach-comic-page');});

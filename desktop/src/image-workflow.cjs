@@ -1,21 +1,27 @@
 'use strict';
 const crypto=require('node:crypto');
+const comicPage=require('./comic-page.cjs');
 function fingerprint(page,scene){return crypto.createHash('sha256').update(page.content+'\0'+scene.start+'\0'+scene.end).digest('hex');}
-function pendingTasks(project,scope='page'){
+function pendingTasks(project,scope='page',mode='scenes'){
  if(!['scene','page','book'].includes(scope))throw Error('محدودهٔ تصویرسازی معتبر نیست.');
+ if(!['scenes','sheet'].includes(mode))throw Error('روش تصویرسازی معتبر نیست.');
  const current=project.pages.find(p=>p.number===project.selected),selected=current?.selectedScene||current?.scenes?.[0]?.id;
+ if(mode==='sheet'&&scope!=='scene'){
+  if(project.presentation!=='COMIC')throw Error('روش صفحه‌به‌صفحه برای قالب کمیک است؛ برای پلان‌های متوالی روش پلان‌به‌پلان را انتخاب کن.');
+  return project.pages.filter(p=>(scope==='book'||p.number===project.selected)&&p.scenes?.length&&!comicPage.sheetDone(p)).map(page=>{if(page.scenes.some(s=>s.layered))throw Error('صفحهٔ '+page.number.toLocaleString('fa-IR')+' لایهٔ شخصیت جدا دارد؛ برای حفظ لایه‌ها از روش پلان‌به‌پلان استفاده کن.');return comicPage.pageTask(page);});
+ }
  return project.pages.filter(p=>scope==='book'||p.number===project.selected).flatMap(page=>(page.scenes||[]).filter(scene=>scope!=='scene'||scene.id===selected).flatMap(scene=>['image',...(scene.layered?['foreground']:[])].filter(asset=>!scene[asset]).map(asset=>({number:page.number,sceneId:scene.id,asset,fingerprint:fingerprint(page,scene)}))));
 }
-function targetFor(project,task){const page=project.pages.find(p=>p.number===task.number),scene=page?.scenes?.find(s=>s.id===task.sceneId);if(!scene||fingerprint(page,scene)!==task.fingerprint)throw Error('متن یا کادرِ در حال ساخت تغییر کرده است؛ تصویر قبلی و تنظیمات حفظ شدند.');return {page,scene};}
+function targetFor(project,task){if(task.asset==='sheet'){const page=comicPage.pageTarget(project,task);return {page,scene:page.scenes[0]};}const page=project.pages.find(p=>p.number===task.number),scene=page?.scenes?.find(s=>s.id===task.sceneId);if(!scene||fingerprint(page,scene)!==task.fingerprint)throw Error('متن یا کادرِ در حال ساخت تغییر کرده است؛ تصویر قبلی و تنظیمات حفظ شدند.');return {page,scene};}
 function imageKey(url){try{const u=new URL(url);return u.protocol==='blob:'?url:u.origin+u.pathname+'?id='+(u.searchParams.get('id')||u.searchParams.get('file_id')||'');}catch{return url;}}
 
 class ImageWorkflow{
  constructor(deps){this.deps=deps;this.status='idle';this.tasks=[];this.done=0;this.flight=null;this.running=null;this.message='';this.projectId=null;this.retries=0;}
  state(){return {status:this.status,total:this.total||0,done:this.done,current:this.tasks[0]||null,message:this.message,elapsed:this.flight?Math.floor((Date.now()-this.flight.started)/1000):0};}
  tell(message){this.message=message;this.deps.notify(this.state());}
- start(project,scope){
+ start(project,scope,mode='scenes'){
   if(this.running||this.status==='paused')throw Error('صف قبلی را ادامه بده یا پایان بده.');
-  this.tasks=pendingTasks(project,scope);this.total=this.tasks.length;this.done=0;this.projectId=project.id;this.flight=null;this.retries=0;this.status=this.tasks.length?'running':'complete';this.tell(this.tasks.length?'تصویرسازی خودکار شروع شد.':'همهٔ تصویرهای این محدوده قبلاً آماده‌اند.');return this.launch();
+  this.tasks=pendingTasks(project,scope,mode);this.total=this.tasks.length;this.done=0;this.projectId=project.id;this.flight=null;this.retries=0;this.status=this.tasks.length?'running':'complete';this.tell(this.tasks.length?(mode==='sheet'&&scope!=='scene'?'ساخت صفحه‌به‌صفحه شروع شد؛ یک درخواست برای تمام پلان‌های هر صفحه.':'تصویرسازی پلان‌به‌پلان شروع شد.'):'همهٔ تصویرهای این محدوده قبلاً آماده‌اند.');return this.launch();
  }
  resume(){if(this.status!=='paused'||this.running)throw Error('صف هنوز در حال توقف است؛ کمی بعد ادامه را بزن.');if(this.flight)this.flight.started=Date.now();this.retries=0;this.status='running';this.tell('ادامهٔ صف تصویرسازی');return this.launch();}
  pause(){if(this.status==='running'){this.status='paused';this.tell('صف متوقف شد؛ تصاویر آماده و درخواستِ در حال ساخت حفظ می‌شوند.');}}
@@ -32,7 +38,7 @@ class ImageWorkflow{
  async run(){
   while(this.status==='running'&&this.tasks.length){
    const task=this.tasks[0],project=this.checked(),{page,scene}=targetFor(project,task);
-   if(scene[task.asset]){this.tasks.shift();this.done++;this.flight=null;continue;}
+   if(task.asset==='sheet'?comicPage.sheetDone(page):scene[task.asset]){this.tasks.shift();this.done++;this.flight=null;continue;}
    if(!this.flight?.submitted){
     await this.deps.select(page,scene);if(this.status!=='running')return;
     const prompt=this.deps.prompt(project,page,scene,task.asset);
@@ -40,7 +46,7 @@ class ImageWorkflow{
     const baseline=await this.deps.scan();
     // Remember before submission so a timeout or pause never resends a prompt.
     this.flight={prompt,baseline:baseline.images.map(imageKey),started:Date.now(),submitted:false,candidate:null,stable:0};
-    this.tell(`در انتظار ساخت تصویر صفحهٔ ${page.number.toLocaleString('fa-IR')}؛ ${task.asset==='foreground'?'شخصیت':'کادر'} ${((page.scenes||[]).indexOf(scene)+1).toLocaleString('fa-IR')}`);
+    this.tell(task.asset==='sheet'?`در انتظار یک تصویر برای تمام ${page.scenes.length.toLocaleString('fa-IR')} پلان صفحهٔ ${page.number.toLocaleString('fa-IR')}`:`در انتظار ساخت تصویر صفحهٔ ${page.number.toLocaleString('fa-IR')}؛ ${task.asset==='foreground'?'شخصیت':'کادر'} ${((page.scenes||[]).indexOf(scene)+1).toLocaleString('fa-IR')}`);
     await this.deps.submit(prompt,()=>{this.flight.submitted=true;});this.flight.submitted=true;
    }
    while(this.status==='running'){

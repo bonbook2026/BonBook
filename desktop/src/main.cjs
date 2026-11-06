@@ -1,7 +1,8 @@
 'use strict';
-const {app,BrowserWindow,WebContentsView,ipcMain,dialog,clipboard,shell,protocol,net,session}=require('electron');
+const {app,BrowserWindow,WebContentsView,ipcMain,dialog,clipboard,shell,protocol,net,session,nativeImage}=require('electron');
 const fs=require('node:fs/promises'),sync=require('node:fs'),path=require('node:path'),{pathToFileURL}=require('node:url'),crypto=require('node:crypto'),core=require('./book-core.cjs'),comic=(()=>{try{return require('../shared/comic-layout.cjs');}catch{return require('../../shared/comic-layout.cjs');}})(),catalogStore=require('./project-catalog.cjs');
 const chatBridge=require('./chat-composer.cjs'),{ImageWorkflow,targetFor}=require('./image-workflow.cjs');
+const comicPage=require('./comic-page.cjs');
 let workflow,autoDownload=null;
 let window,chat,project=null,directory='',browserVisible=true,armed=null,busy=false,message='',warning='',progress=null,saveQueue=Promise.resolve(),catalogQueue=Promise.resolve(),projects=[];
 const profile=process.argv.find(arg=>arg.startsWith('--studio-profile='));if(profile)app.setPath('userData',path.resolve(profile.slice('--studio-profile='.length)));
@@ -25,7 +26,7 @@ function installWorkflow(){
  workflow=new ImageWorkflow({
   project:()=>project,notify:emit,delay:ms=>new Promise(resolve=>setTimeout(resolve,ms)),
   select:async(page,scene)=>{project.selected=page.number;page.selectedScene=scene.id;await persist();},
-  prompt:(p,page,scene,asset)=>core.scenes.scenePrompt(p,page,scene,asset),
+  prompt:(p,page,scene,asset)=>asset==='sheet'?comicPage.pagePrompt(p,page):core.scenes.scenePrompt(p,page,scene,asset),
   prepare:async value=>{browserVisible=true;bounds();await chatBridge.prepare(chat.webContents,value);},
   scan:prompt=>chatBridge.scan(chat.webContents,prompt),submit:(value,onAttempt)=>chatBridge.submit(chat.webContents,value,onAttempt,()=>workflow.status==='running'),
   rememberChat:async()=>{const url=chatBridge.conversationUrl(chat.webContents.getURL());if(url&&project?.id===workflow.projectId&&project.chatUrl!==url){project.chatUrl=url;await persist();}},
@@ -45,7 +46,7 @@ function captureAutomaticDownload(item,request){
  item.once('done',async(_event,status)=>{clearTimeout(deadline);try{
   if(status!=='completed')throw Error('دانلود تصویر کامل نشد؛ برای تلاش دوباره ادامه را بزن.');
   if(!project||project.id!==request.id||directory!==request.directory)throw Error('پروژه عوض شده است؛ تصویر به کتاب دیگری متصل نشد.');
-  const {scene}=targetFor(project,request.task);if(!scene[request.task.asset])await core.attachScene(project,directory,request.task.number,request.task.sceneId,temporary,request.task.asset);
+  const {scene}=targetFor(project,request.task);if(request.task.asset==='sheet')await comicPage.attachPage(project,directory,request.task,temporary,file=>nativeImage.createFromPath(file));else if(!scene[request.task.asset])await core.attachScene(project,directory,request.task.number,request.task.sceneId,temporary,request.task.asset);
   await persist();request.resolve();
  }catch(error){request.reject(error);}finally{await fs.unlink(temporary).catch(()=>{});}});
 }
@@ -57,8 +58,11 @@ function installIpc(){
    checked();if(workflow.status==='paused'||workflow.status==='running')throw Error('صف قبلی را ادامه بده یا پایان بده.');armed=null;
    const saved=chatBridge.conversationUrl(project.chatUrl),current=chat.webContents.getURL();
    if(saved&&current!==saved||!saved&&chatBridge.conversationUrl(current))await chat.webContents.loadURL(saved||'https://chatgpt.com/');
-   void workflow.start(project,payload?.scope||'page');message='صف تصویرسازی فعال شد؛ وضعیت آن در مرحلهٔ سوم نمایش داده می‌شود.';
+   void workflow.start(project,payload?.scope||'page',payload?.mode||'scenes');message='صف تصویرسازی فعال شد؛ وضعیت آن در مرحلهٔ سوم نمایش داده می‌شود.';
   }),
+  'image-mode':async payload=>{checked();if(!['scenes','sheet'].includes(payload?.mode))throw Error('روش تصویرسازی معتبر نیست.');project.imageMode=payload.mode;await persist();},
+  'prepare-comic-page':async()=>{checked();const tasks=require('./image-workflow.cjs').pendingTasks(project,'page','sheet');if(!tasks.length)throw Error('همهٔ کادرهای این صفحه تصویر دارند؛ برای اصلاح از ساخت همین کادر استفاده کن.');const page=project.pages.find(p=>p.number===project.selected),value=comicPage.pagePrompt(project,page);clipboard.writeText(value);armed={...tasks[0],id:project.id,directory};browserVisible=true;bounds();await chatBridge.prepare(chat.webContents,value);message='دستور یک تصویر برای تمام پلان‌های این صفحه آماده شد؛ دانلود بعدی به کادرهای خالی همین صفحه وصل می‌شود.';emit();},
+  'attach-comic-page':()=>run(async()=>{checked();const tasks=require('./image-workflow.cjs').pendingTasks(project,'page','sheet');if(!tasks.length)throw Error('همهٔ کادرهای این صفحه تصویر دارند؛ برای اصلاح از تصویر همین پلان استفاده کن.');const result=await chooseFiles('image');if(result.canceled)return;const attached=await comicPage.attachPage(project,directory,tasks[0],result.filePaths[0],file=>nativeImage.createFromPath(file));message=attached.panels.toLocaleString('fa-IR')+' کادر خالی از تصویر کامل صفحه آماده شد؛ تصویرهای قبلی حفظ شدند.';await persist();}),
   'workflow-pause':async()=>workflow.pause(),
   'workflow-resume':async()=>{checked();if(workflow.projectId!==project.id)throw Error('ابتدا پروژهٔ صف قبلی را باز کن یا صف را پایان بده.');void workflow.resume();},
   'workflow-stop':async()=>workflow.stop(),
@@ -108,7 +112,7 @@ async function createWindow(){
   if(contents!==chat.webContents||!armed||!(/^image\/(png|jpeg|webp)$/.test(item.getMimeType())||/\.(png|jpe?g|webp)$/i.test(item.getFilename())))return;
   const target=armed;armed=null;emit();const folder=path.join(app.getPath('userData'),'image-downloads');await fs.mkdir(folder,{recursive:true});const temporary=path.join(folder,crypto.randomUUID()+'.download');item.setSavePath(temporary);
   item.on('updated',()=>{if(item.getReceivedBytes()>30*1024*1024)item.cancel();});
-  item.once('done',async(_event,status)=>{try{if(status!=='completed')throw Error('دانلود تصویر کامل نشد.');if(!project||project.id!==target.id||directory!==target.directory)throw Error('پروژه عوض شده است؛ تصویر به کتاب دیگری متصل نشد.');const page=project.pages.find(p=>p.number===target.number),old=target.sceneId?page?.scenes?.find(s=>s.id===target.sceneId):page;if(!old)throw Error('پلان عوض شده است؛ دانلود به پلان دیگری متصل نشد.');if(old[target.asset||"image"]){const answer=await dialog.showMessageBox(window,{type:'question',buttons:['حفظ تصویر قبلی','جایگزینی با دانلود جدید'],defaultId:0,cancelId:0,message:`تصویر صفحهٔ ${target.number} جایگزین شود؟`});if(answer.response!==1)return;}if(target.sceneId){await core.attachScene(project,directory,target.number,target.sceneId,temporary,target.asset||"image");message='تصویر دانلودشده به پلان درست وصل شد.';await persist();}else await attachOne(target.number,'image',temporary);}catch(error){message=error.message;emit();}finally{await fs.unlink(temporary).catch(()=>{});}});
+  item.once('done',async(_event,status)=>{try{if(status!=='completed')throw Error('دانلود تصویر کامل نشد.');if(!project||project.id!==target.id||directory!==target.directory)throw Error('پروژه عوض شده است؛ تصویر به کتاب دیگری متصل نشد.');if(target.asset==='sheet'){await comicPage.attachPage(project,directory,target,temporary,file=>nativeImage.createFromPath(file));message='تصویر کامل صفحه به کادرهای خالی وصل شد؛ متن، ویس و تصویرهای قبلی حفظ شدند.';await persist();return;}const page=project.pages.find(p=>p.number===target.number),old=target.sceneId?page?.scenes?.find(s=>s.id===target.sceneId):page;if(!old)throw Error('پلان عوض شده است؛ دانلود به پلان دیگری متصل نشد.');if(old[target.asset||"image"]){const answer=await dialog.showMessageBox(window,{type:'question',buttons:['حفظ تصویر قبلی','جایگزینی با دانلود جدید'],defaultId:0,cancelId:0,message:`تصویر صفحهٔ ${target.number} جایگزین شود؟`});if(answer.response!==1)return;}if(target.sceneId){await core.attachScene(project,directory,target.number,target.sceneId,temporary,target.asset||"image");message='تصویر دانلودشده به پلان درست وصل شد.';await persist();}else await attachOne(target.number,'image',temporary);}catch(error){message=error.message;emit();}finally{await fs.unlink(temporary).catch(()=>{});}});
  });
  window.on('resize',bounds);window.on('closed',()=>{chat?.webContents.close();chat=null;window=null;});
  await window.loadURL(pathToFileURL(uiFile).href);bounds();chat.webContents.loadURL('https://chatgpt.com/').catch(()=>{});
