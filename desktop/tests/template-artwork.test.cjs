@@ -1,0 +1,18 @@
+'use strict';
+const {test}=require('node:test'),assert=require('node:assert/strict'),{templateLayout,pageLayout,pagePrompt}=require('../src/comic-page.cjs'),{panelRects}=require('../src/comic-borders.cjs'),{clearImage,restoreImage,referenceImages,continuationPrompt}=require('../src/studio-artwork.cjs'),core=require('../src/book-core.cjs');
+test('template reserves Persian captions outside every art rectangle and keeps RTL panel order',()=>{
+ for(let count=1;count<=24;count++){const full=templateLayout(count),art=pageLayout(count);assert.equal(full.captioned,true);assert.equal(full.height,art.height+96*art.rows.length);for(const r of full.panels){assert.equal(r.caption.y,r.y+r.height);assert.equal(r.caption.height,96);assert.ok(r.caption.y+r.caption.height<=full.height+.01);}assert.deepEqual(full.rows,art.rows);}
+ const p=core.newProject('عنوان ثابت',[{number:14,heading:'',content:'روایت دقیق این صفحه.'}]),prompt=pagePrompt(p,p.pages[0]);assert.match(prompt,/قالب تصویریِ پیوست مرجع قطعی/);assert.match(prompt,/پلان ۱ بالا-راست/);assert.match(prompt,/نوشتهٔ فارسیِ نوارهای قالب را حذف، بازنویسی یا جابه‌جا نکن/);
+});
+test('image clearing and undo change only the selected layer and retain text, cues and all original file references',()=>{
+ const page={content:'متن ثابت',audio:'assets/voice.mp3',audioCues:[{time:0,offset:0}],scenes:[{id:'s-1',start:0,end:8,image:'assets/one.png',foreground:'assets/actor.png',motion:'drift'}]},text=page.content,cues=JSON.stringify(page.audioCues);
+ assert.equal(clearImage(page,'s-1'),true);assert.equal(page.scenes[0].image,null);assert.equal(page.removedImages[0].image,'assets/one.png');assert.equal(page.scenes[0].foreground,'assets/actor.png');assert.equal(page.content,text);assert.equal(JSON.stringify(page.audioCues),cues);assert.equal(page.audio,'assets/voice.mp3');assert.equal(page.scenes[0].motion,'drift');restoreImage(page,'s-1');assert.equal(page.scenes[0].image,'assets/one.png');assert.equal(page.removedImages.length,0);assert.throws(()=>restoreImage(page,'s-1'),/تصویر دارد/);
+});
+test('new-chat continuity uses approved references first and carries title, style, character canon and prior-page context',()=>{
+ const p=core.newProject('کتاب اصلی',[{number:1,heading:'',content:'روایت قبلی.'},{number:2,heading:'ادامه',content:'روایت بعدی.'}]);p.style='طراحی جوهری ثابت';p.characters='موی قهوه‌ای و کت سرمه‌ای';p.pages[0].scenes[0].image='assets/first.png';assert.deepEqual(referenceImages(p,p.pages[1]),['assets/first.png']);p.visualReferences=['assets/approved.png'];assert.deepEqual(referenceImages(p,p.pages[1]),['assets/approved.png']);const prompt=continuationPrompt(p,p.pages[1]);for(const text of ['کتاب اصلی','طراحی جوهری ثابت','موی قهوه‌ای و کت سرمه‌ای','روایت قبلی.','روایت بعدی.','تصویر نساز'])assert.ok(prompt.includes(text),text);
+});
+test('border detection follows unequal generated columns rather than slicing a third of the neighbouring image',()=>{
+ const size={width:300,height:333},bitmap=Buffer.alloc(size.width*size.height*4,255),fill=(left,top,right,bottom,color)=>{for(let y=top;y<bottom;y++)for(let x=left;x<right;x++){const i=(y*size.width+x)*4;bitmap[i]=color;bitmap[i+1]=100;bitmap[i+2]=100;}},rows=[[0,102,[0,150,300]],[106,222,[0,78,192,300]],[226,333,[0,150,300]]];
+ for(const [top,bottom,cuts]of rows)for(let i=0;i<cuts.length-1;i++)fill(cuts[i]+2,top,cuts[i+1]-2,bottom,30+i*30);
+ const image={getSize:()=>size,toBitmap:()=>bitmap},layout={...pageLayout(7),captioned:false},rects=panelRects(image,layout,()=>{throw Error('Fixed crop used');});assert.ok(rects[4].width<90);assert.ok(rects[3].width>100);assert.ok(rects[4].x+rects[4].width<85);assert.ok(rects[3].x>=78);assert.ok(rects[2].x>=190);
+});

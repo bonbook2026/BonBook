@@ -42,7 +42,7 @@ class ImageWorkflow{
    if(!this.flight?.submitted){
     await this.deps.select(page,scene);if(this.status!=='running')return;
     const prompt=this.deps.prompt(project,page,scene,task.asset);
-    await this.deps.prepare(prompt);if(this.status!=='running')return;
+    await this.deps.prepare(prompt,{page,scene,asset:task.asset});if(this.status!=='running')return;
     const baseline=await this.deps.scan();
     // Remember before submission so a timeout or pause never resends a prompt.
     this.flight={prompt,baseline:baseline.images.map(imageKey),started:Date.now(),submitted:false,candidate:null,stable:0};
